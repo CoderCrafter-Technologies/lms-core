@@ -1,0 +1,31 @@
+name: Deploy Super Admin
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "super-admin/**"
+      - "docker-compose.yml"
+      - ".github/workflows/deploy-super-admin.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy super-admin container on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -e
+            cd "${{ secrets.DEPLOY_PATH }}"
+            git fetch origin main
+            git checkout main
+            git pull --ff-only origin main
+            docker compose -f docker-compose-example.yml up -d --build super_admin
+            docker image prune -f
+            docker compose -f docker-compose-example.yml ps super_admin

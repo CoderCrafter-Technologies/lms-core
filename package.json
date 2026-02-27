@@ -1,0 +1,41 @@
+{
+  "name": "lms-futureproof",
+  "version": "1.0.0",
+  "description": "Future-proof LMS with MongoDB to PostgreSQL migration path",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "npm run build:backend && npm run build:frontend",
+    "build:backend": "cd backend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "start": "npm run start:backend",
+    "start:backend": "cd backend && npm start",
+    "start:frontend": "cd frontend && npm start"
+  },
+  "keywords": [
+    "lms",
+    "education",
+    "mongodb",
+    "postgresql",
+    "nextjs",
+    "expressjs"
+  ],
+  "author": "LMS Team",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "typescript": "^5.9.2"
+  },
+  "dependencies": {
+    "@radix-ui/react-collapsible": "^1.1.12",
+    "@radix-ui/react-dropdown-menu": "^2.1.16",
+    "@radix-ui/react-popover": "^1.1.14",
+    "@radix-ui/react-switch": "^1.2.6",
+    "@radix-ui/react-tooltip": "^1.2.7",
+    "konva": "^9.2.3",
+    "lucide-react": "^0.539.0",
+    "react-konva": "^18.2.12"
+  }
+}

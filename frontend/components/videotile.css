@@ -1,0 +1,183 @@
+/* VideoTile.css */
+.teams-video-tile {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #1f2937;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.teams-video-tile.has-video {
+  background: transparent;
+}
+
+.video-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.teams-video-element {
+  width: 100%;
+  height: 100%;
+  object-fit: contain; /* Changed from cover to contain to prevent zooming */
+  background: #1f2937;
+  transition: opacity 0.3s ease;
+}
+
+/* For grid layouts, use cover to fill the container */
+.teams-video-grid .teams-video-element {
+  object-fit: cover;
+}
+
+/* For focused/zoomed view, use contain to show full video */
+.teams-video-tile.focused .teams-video-element {
+  object-fit: contain;
+}
+
+/* For small tiles (filmstrip), use cover */
+.teams-video-tile.small .teams-video-element {
+  object-fit: cover;
+}
+
+.teams-avatar {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 10;
+}
+
+.teams-status-indicators {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: flex;
+  gap: 4px;
+  z-index: 20;
+}
+
+.teams-status-indicator {
+  padding: 4px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.teams-status-indicator.hand-raised {
+  background: rgba(234, 179, 8, 0.9);
+}
+
+.teams-status-indicator.presenting {
+  background: rgba(34, 197, 94, 0.9);
+}
+
+.teams-status-indicator.muted {
+  background: rgba(239, 68, 68, 0.9);
+}
+
+.teams-status-indicator.video-off {
+  background: rgba(156, 163, 175, 0.9);
+}
+
+.teams-participant-info {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 20;
+}
+
+/* Grid layout fixes */
+.teams-video-grid {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  height: 100%;
+}
+
+.teams-video-grid-three {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 8px;
+  height: 100%;
+}
+
+.teams-video-grid-three > *:nth-child(3) {
+  grid-column: 1 / span 2;
+  justify-self: center;
+  width: 50%;
+}
+
+/* Filmstrip styling */
+.teams-filmstrip {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 120px;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  overflow-x: auto;
+  z-index: 30;
+}
+
+.teams-filmstrip .teams-video-tile {
+  width: 160px;
+  height: 100%;
+  flex-shrink: 0;
+}
+
+/* Animation for speaking */
+@keyframes speaking-pulse {
+  0%, 100% { border-color: rgba(34, 197, 94, 0.5); }
+  50% { border-color: rgba(34, 197, 94, 1); }
+}
+
+.teams-speaking-animation {
+  animation: speaking-pulse 2s infinite;
+}
+
+/* Loading state */
+.teams-video-tile:not(.has-video)::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, #374151 0%, #4b5563 50%, #374151 100%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}

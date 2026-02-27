@@ -75,8 +75,7 @@ export function NotificationCenterInner({ mode = 'fixed' }: NotificationCenterPr
     if (!userId) return
     refreshNotifications()
     refreshPreferences()
-    const interval = setInterval(refreshNotifications, 60_000)
-    return () => clearInterval(interval)
+    return () => {}
   }, [userId])
 
   useEffect(() => {
@@ -99,6 +98,10 @@ export function NotificationCenterInner({ mode = 'fixed' }: NotificationCenterPr
     const socket = process.env.NEXT_PUBLIC_SOCKET_URL
       ? initSocket(process.env.NEXT_PUBLIC_SOCKET_URL)
       : initSocket()
+
+    socket.on('connect', () => {
+      refreshNotifications()
+    })
 
     socket.emit('register-user', { userId })
 
@@ -139,6 +142,7 @@ export function NotificationCenterInner({ mode = 'fixed' }: NotificationCenterPr
     socket.on('notification:new', handleNewNotification)
 
     return () => {
+      socket.off('connect')
       socket.off('notification:new', handleNewNotification)
       releaseSocket()
     }
@@ -213,7 +217,15 @@ export function NotificationCenterInner({ mode = 'fixed' }: NotificationCenterPr
     <div className={mode === 'fixed' ? 'fixed right-4 top-4 z-[70]' : 'relative z-30'} ref={panelRef}>
       <button
         type="button"
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={() => {
+          setOpen((prev) => {
+            const next = !prev
+            if (next) {
+              refreshNotifications()
+            }
+            return next
+          })
+        }}
         className="relative h-10 w-10 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] shadow-[var(--shadow-sm)] transition hover:bg-[var(--color-surface-muted)]"
         aria-label="Open notifications"
       >

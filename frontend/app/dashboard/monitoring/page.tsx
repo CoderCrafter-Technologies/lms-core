@@ -220,7 +220,7 @@ export default function MonitoringPage() {
     const interval = setInterval(() => {
       loadHealth()
       loadAlertStatus()
-    }, 60_000)
+    }, 120_000)
     return () => clearInterval(interval)
   }, [canAccessMonitoring])
 

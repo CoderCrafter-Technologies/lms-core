@@ -3,7 +3,15 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci
+# Ensure build tools (including next) are installed even if the host sets prod-only npm config.
+ENV NPM_CONFIG_PRODUCTION=false
+# Isolate npm from any global/user config or auth tokens inside the build image.
+RUN printf "registry=https://registry.npmjs.org/\\n" > /tmp/npmrc \
+  && NODE_AUTH_TOKEN= \
+  NPM_TOKEN= \
+  NPM_CONFIG_USERCONFIG=/tmp/npmrc \
+  NPM_CONFIG_REGISTRY=https://registry.npmjs.org/ \
+  npm ci --include=dev --no-audit --no-fund
 
 COPY . .
 RUN mkdir -p public

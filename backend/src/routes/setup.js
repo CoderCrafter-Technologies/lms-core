@@ -608,7 +608,16 @@ router.post('/custom-domains/apply-caddy', async (req, res) => {
   const adminUrl = process.env.CADDY_ADMIN_URL || 'http://caddy:2019';
   const reloadUrl = `${adminUrl.replace(/\/$/, '')}/load?adapter=caddyfile`;
 
-  const reloadResult = await postText(reloadUrl, caddyfile, 'text/caddyfile');
+  let reloadResult;
+  try {
+    reloadResult = await postText(reloadUrl, caddyfile, 'text/caddyfile');
+  } catch (error) {
+    return res.status(503).json({
+      success: false,
+      message: 'Caddy admin API is not reachable. Ensure the caddy service is running.',
+      error: error?.message || String(error)
+    });
+  }
   if (!reloadResult.ok) {
     return res.status(500).json({
       success: false,

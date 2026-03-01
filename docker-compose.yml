@@ -5,6 +5,8 @@ services:
     image: caddy:2
     container_name: coder_caddy
     restart: unless-stopped
+    environment:
+      CADDY_ADMIN: "0.0.0.0:2019"
     ports:
       - "80:80"
       - "443:443"

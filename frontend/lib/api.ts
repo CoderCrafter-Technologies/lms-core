@@ -27,7 +27,17 @@ const resolveApiBaseUrl = () => {
   }
 
   if (envBase) {
-    return envBase;
+    try {
+      const parsed = new URL(envBase);
+      const isLocalHost =
+        ['localhost', '127.0.0.1', '0.0.0.0'].includes(parsed.hostname) &&
+        !['localhost', '127.0.0.1', '0.0.0.0'].includes(hostname);
+      if (!isLocalHost) {
+        return envBase;
+      }
+    } catch {
+      return envBase;
+    }
   }
 
   const fallbackProtocol = protocol || 'http:';

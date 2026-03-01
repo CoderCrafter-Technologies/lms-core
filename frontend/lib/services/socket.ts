@@ -17,7 +17,17 @@ const resolveSocketUrl = (serverUrl?: string) => {
   }
 
   if (serverUrl) {
-    return serverUrl;
+    try {
+      const parsed = new URL(serverUrl);
+      const isLocalHost =
+        ["localhost", "127.0.0.1", "0.0.0.0"].includes(parsed.hostname) &&
+        !["localhost", "127.0.0.1", "0.0.0.0"].includes(hostname);
+      if (!isLocalHost) {
+        return serverUrl;
+      }
+    } catch {
+      return serverUrl;
+    }
   }
 
   const fallbackProtocol = protocol || "http:";

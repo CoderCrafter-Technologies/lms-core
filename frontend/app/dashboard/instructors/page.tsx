@@ -3,7 +3,6 @@
 import { useAuth } from '../../../components/providers/AuthProvider'
 import { api } from '@/lib/api'
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { Badge } from '../../../components/ui/badge'
 import { Button } from '../../../components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card'
@@ -26,6 +25,7 @@ import {
   ChevronRight
 } from 'lucide-react'
 import { InstructorModal } from '@/components/modals/InstructorModal'
+import { Modal } from '@/components/ui/Modal'
 import { cn } from '@/lib/utils'
 
 interface Course {
@@ -37,7 +37,6 @@ interface Course {
 
 export default function InstructorsPage() {
   const { user } = useAuth()
-  const router = useRouter()
   const [instructors, setInstructors] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
@@ -47,6 +46,10 @@ export default function InstructorsPage() {
   const [availableCourses, setAvailableCourses] = useState<Course[]>([])
   const [resettingInstructorId, setResettingInstructorId] = useState<string | null>(null)
   const [deletingInstructorId, setDeletingInstructorId] = useState<string | null>(null)
+  const [viewOpen, setViewOpen] = useState(false)
+  const [viewLoading, setViewLoading] = useState(false)
+  const [viewInstructorId, setViewInstructorId] = useState<string | null>(null)
+  const [viewInstructor, setViewInstructor] = useState<any | null>(null)
   
   // Check permissions
   const canManageInstructors = user?.role.name === 'ADMIN' || user?.role.name === 'MANAGER'
@@ -169,6 +172,58 @@ export default function InstructorsPage() {
     } finally {
       setDeletingInstructorId(null)
     }
+  }
+
+  const openViewModal = (instructor: any) => {
+    const instructorId = instructor?._id || instructor?.id
+    if (!instructorId) return
+    setViewInstructorId(instructorId)
+    setViewOpen(true)
+  }
+
+  const closeViewModal = () => {
+    setViewOpen(false)
+    setViewInstructor(null)
+    setViewInstructorId(null)
+  }
+
+  const loadInstructorDetails = async (instructorId: string) => {
+    try {
+      setViewLoading(true)
+      const response = await api.getInstructorById(instructorId)
+      setViewInstructor(response?.data || null)
+    } catch (error) {
+      console.error('Error loading instructor details:', error)
+      toast.error('Failed to load instructor details')
+      setViewInstructor(null)
+    } finally {
+      setViewLoading(false)
+    }
+  }
+
+  const handleToggleInstructorFromModal = async () => {
+    if (!viewInstructorId) return
+    try {
+      setViewLoading(true)
+      const response = await api.toggleInstructorStatus(viewInstructorId)
+      const updated = response?.data || null
+      setViewInstructor((prev: any) =>
+        prev ? { ...prev, isActive: updated?.isActive ?? !prev.isActive } : prev
+      )
+      toast.success(`Instructor ${updated?.isActive ? 'activated' : 'deactivated'} successfully`)
+      fetchInstructors()
+    } catch (error) {
+      console.error('Error toggling instructor status:', error)
+      toast.error('Failed to update instructor status')
+    } finally {
+      setViewLoading(false)
+    }
+  }
+
+  const handleDeleteInstructorFromModal = async () => {
+    if (!viewInstructor) return
+    await handleDeleteInstructor(viewInstructor)
+    closeViewModal()
   }
 
   if (!canManageInstructors) {
@@ -321,7 +376,7 @@ export default function InstructorsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredInstructors.map((instructor) => (
+          {filteredInstructors.map((instructor) => (
                     <TableRow key={instructor._id || instructor.id} hover>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-3">
@@ -358,9 +413,7 @@ export default function InstructorsPage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() =>
-                              router.push(`/dashboard/instructors/${instructor._id || instructor.id}`)
-                            }
+                            onClick={() => openViewModal(instructor)}
                           >
                             View
                           </Button>
@@ -439,6 +492,98 @@ export default function InstructorsPage() {
           fetchInstructors();
         }}
       />
+
+      <Modal
+        isOpen={viewOpen}
+        onClose={closeViewModal}
+        title="Instructor Details"
+        size="lg"
+      >
+        <div className="space-y-4">
+          {viewLoading ? (
+            <div className="space-y-3">
+              {[...Array(6)].map((_, idx) => (
+                <Skeleton key={idx} className="h-4 w-full" />
+              ))}
+            </div>
+          ) : viewInstructor ? (
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold" style={{ color: 'var(--color-text)' }}>
+                  {viewInstructor.firstName} {viewInstructor.lastName}
+                </h3>
+                <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                  {viewInstructor.email || 'No email'} {viewInstructor.phone ? `• ${viewInstructor.phone}` : ''}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p style={{ color: 'var(--color-text-secondary)' }}>Status</p>
+                  <Badge variant={viewInstructor.isActive ? 'success' : 'destructive'}>
+                    {viewInstructor.isActive ? 'ACTIVE' : 'INACTIVE'}
+                  </Badge>
+                </div>
+                <div>
+                  <p style={{ color: 'var(--color-text-secondary)' }}>Assigned Classes</p>
+                  <p style={{ color: 'var(--color-text)' }}>{viewInstructor.classes?.length || 0}</p>
+                </div>
+                <div>
+                  <p style={{ color: 'var(--color-text-secondary)' }}>Assigned Batches</p>
+                  <p style={{ color: 'var(--color-text)' }}>{viewInstructor.batches?.length || 0}</p>
+                </div>
+                <div>
+                  <p style={{ color: 'var(--color-text-secondary)' }}>Joined</p>
+                  <p style={{ color: 'var(--color-text)' }}>
+                    {viewInstructor.createdAt ? format(new Date(viewInstructor.createdAt), 'PP') : 'N/A'}
+                  </p>
+                </div>
+              </div>
+
+              {viewInstructor.profile?.expertise && (
+                <div>
+                  <p className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>Expertise</p>
+                  <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                    {viewInstructor.profile.expertise}
+                  </p>
+                </div>
+              )}
+
+              {viewInstructor.profile?.bio && (
+                <div>
+                  <p className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>Bio</p>
+                  <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                    {viewInstructor.profile.bio}
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+              No instructor details found.
+            </div>
+          )}
+        </div>
+
+        {viewInstructor && user?.role.name === 'ADMIN' && (
+          <div className="mt-6 flex flex-wrap gap-2 justify-end">
+            <Button
+              variant={viewInstructor.isActive ? 'outline' : 'default'}
+              onClick={handleToggleInstructorFromModal}
+              disabled={viewLoading}
+            >
+              {viewInstructor.isActive ? 'Deactivate' : 'Activate'}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteInstructorFromModal}
+              disabled={viewLoading}
+            >
+              Delete
+            </Button>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }

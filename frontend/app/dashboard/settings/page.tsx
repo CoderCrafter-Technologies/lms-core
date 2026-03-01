@@ -577,6 +577,10 @@ export default function SettingsPage() {
     try {
       setSaving(true)
       setMessage(null)
+      const payload: any = { ...smtpSettings }
+      delete payload.testEmail
+      const saveResponse = await api.updateAdminSmtpSettings(payload)
+      setSmtpSettings((prev) => ({ ...prev, ...(saveResponse?.settings || saveResponse?.data || {}), authPass: '' }))
       const response = await api.testAdminSmtpSettings(smtpSettings as any)
       setMessage(response?.message || 'SMTP connection verified.')
     } catch (error: any) {

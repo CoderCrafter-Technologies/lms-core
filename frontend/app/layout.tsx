@@ -7,6 +7,7 @@ import { ToastProvider } from '../components/providers/ToastProvider'
 import { ClassContextProvider } from '@/lib/contexts/ClassContext'
 import { SetupProvider } from '@/components/providers/SetupProvider'
 import BrandWatermark from '@/components/BrandWatermark'
+import DomainRedirect from '@/components/DomainRedirect'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -57,6 +58,7 @@ export default function RootLayout({
             <AuthProvider>
               <ToastProvider>
                 <ClassContextProvider>
+                  <DomainRedirect />
                   {children}
                   <BrandWatermark />
                 </ClassContextProvider>

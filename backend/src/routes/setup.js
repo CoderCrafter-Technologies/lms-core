@@ -217,10 +217,15 @@ router.get('/public-settings', async (req, res, next) => {
   try {
     const status = await setupService.getStatus();
     const publicSettings = await systemSettingsStore.getPublicAppSettings();
+    const setupSettings = await systemSettingsStore.getSetupSettings();
+    const savedDomain = (setupSettings?.customDomains || [])
+      .filter((item) => item?.domain && item?.savedAt)
+      .sort((a, b) => String(b.savedAt || '').localeCompare(String(a.savedAt || '')))[0];
     res.json({
       success: true,
       data: {
         ...publicSettings,
+        customDomain: savedDomain ? { domain: savedDomain.domain, savedAt: savedDomain.savedAt } : null,
         completed: status.completed,
         watermark: {
           text: 'Powered by CoderCrafter',

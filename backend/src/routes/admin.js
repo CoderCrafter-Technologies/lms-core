@@ -7,6 +7,10 @@ const { databaseSettingsService } = require('../services/databaseSettingsService
 const { telemetryLicensingService } = require('../services/telemetryLicensingService');
 const systemSettingsStore = require('../services/systemSettingsStore');
 const { smtpService } = require('../services/smtpService');
+const { User, Role, RolePermission, Permission, Course, Batch, LiveClass, Enrollment, PastEnrollment, Assessment, AssessmentSubmission, RefreshSession, Notification, MonitoringRecord, MonitoringPolicy, Resource, Ticket } = require('../models');
+const mongoose = require('mongoose');
+const fs = require('fs/promises');
+const path = require('path');
 const User = require('../models/User');
 const emailService = require('../services/emailService');
 
@@ -410,6 +414,72 @@ router.get('/licensing/public-summary', async (req, res, next) => {
     });
   } catch (error) {
     next(error);
+  }
+});
+
+/**
+ * @route   POST /api/admin/reset
+ * @desc    Reset institute data (wipe or full)
+ * @access  Admin
+ */
+router.post('/reset', [
+  body('mode').isIn(['wipe', 'full']).withMessage('Reset mode must be wipe or full')
+], validateRequest, async (req, res) => {
+  const mode = String(req.body?.mode || 'wipe').toLowerCase();
+  const uploadsDir = path.join(__dirname, '../../uploads');
+  const dataDir = path.join(__dirname, '../../data');
+
+  try {
+    if (mode === 'full') {
+      if (mongoose.connection?.db) {
+        await mongoose.connection.db.dropDatabase();
+      }
+      await systemSettingsStore.resetToDefaults();
+      await fs.rm(uploadsDir, { recursive: true, force: true });
+      await fs.rm(dataDir, { recursive: true, force: true });
+      await fs.mkdir(uploadsDir, { recursive: true });
+      await fs.mkdir(dataDir, { recursive: true });
+
+      return res.json({
+        success: true,
+        message: 'Full reset completed. Setup wizard will be required on next load.'
+      });
+    }
+
+    const adminRole = await Role.findOne({ name: /admin/i }).select('_id');
+    const adminIds = adminRole
+      ? await User.find({ roleId: adminRole._id }).select('_id')
+      : [];
+    const adminIdList = adminIds.map((doc) => doc._id);
+
+    await Promise.all([
+      Course.deleteMany({}),
+      Batch.deleteMany({}),
+      LiveClass.deleteMany({}),
+      Enrollment.deleteMany({}),
+      PastEnrollment.deleteMany({}),
+      Assessment.deleteMany({}),
+      AssessmentSubmission.deleteMany({}),
+      Resource.deleteMany({}),
+      Ticket.deleteMany({}),
+      Notification.deleteMany({}),
+      MonitoringRecord.deleteMany({}),
+      MonitoringPolicy.deleteMany({}),
+      RefreshSession.deleteMany({}),
+      User.deleteMany(adminIdList.length ? { _id: { $nin: adminIdList } } : {}),
+      RolePermission.deleteMany({}),
+      Permission.deleteMany({})
+    ]);
+
+    return res.json({
+      success: true,
+      message: 'Data wiped successfully. Admin accounts were preserved.'
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to reset institute'
+    });
   }
 });
 

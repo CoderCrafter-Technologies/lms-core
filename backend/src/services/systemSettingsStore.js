@@ -260,6 +260,12 @@ class SystemSettingsStore {
     await this.write(settings);
     return settings.smtp;
   }
+
+  async resetToDefaults() {
+    const defaults = cloneDefaults();
+    await this.write(defaults);
+    return defaults;
+  }
 }
 
 module.exports = new SystemSettingsStore();

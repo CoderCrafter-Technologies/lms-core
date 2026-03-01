@@ -181,6 +181,9 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [resetDialogOpen, setResetDialogOpen] = useState(false)
+  const [resetMode, setResetMode] = useState<'wipe' | 'full'>('wipe')
+  const [resetConfirm, setResetConfirm] = useState('')
   const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '' })
   const [passwordLoading, setPasswordLoading] = useState(false)
   const [domainBusy, setDomainBusy] = useState(false)
@@ -513,6 +516,32 @@ export default function SettingsPage() {
     }
   }
 
+  const handleResetInstitute = async () => {
+    if (resetMode === 'full' && resetConfirm.trim().toLowerCase() !== 'reset') {
+      setMessage('Type RESET to confirm a full reset.')
+      return
+    }
+    if (resetMode === 'wipe' && resetConfirm.trim().toLowerCase() !== 'wipe') {
+      setMessage('Type WIPE to confirm a data wipe.')
+      return
+    }
+    try {
+      setSaving(true)
+      setMessage(null)
+      const response = await api.resetInstitute({ mode: resetMode })
+      setMessage(response?.message || 'Reset completed.')
+      setResetDialogOpen(false)
+      setResetConfirm('')
+      if (resetMode === 'full') {
+        window.location.href = '/setup'
+      }
+    } catch (error: any) {
+      setMessage(error?.message || 'Reset failed.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const saveDatabaseSettings = async () => {
     try {
       setSaving(true)
@@ -735,6 +764,71 @@ export default function SettingsPage() {
               {passwordLoading ? 'Updating...' : 'Update Password'}
             </button>
           </div>
+
+          {isAdmin && (
+            <div className="rounded-lg border p-4" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+              <h2 className="font-semibold mb-3" style={{ color: 'var(--color-text)' }}>Danger Zone</h2>
+              <p className="text-sm mb-4" style={{ color: 'var(--color-text-secondary)' }}>
+                Reset your institute data. These actions cannot be undone.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setResetMode('wipe'); setResetConfirm(''); setResetDialogOpen(true) }}
+                  className="px-3 py-2 rounded-md text-sm border border-yellow-500 text-yellow-700"
+                >
+                  Wipe Data
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setResetMode('full'); setResetConfirm(''); setResetDialogOpen(true) }}
+                  className="px-3 py-2 rounded-md text-sm border border-red-500 text-red-700"
+                >
+                  Full Reset
+                </button>
+              </div>
+
+              {resetDialogOpen && (
+                <div className="mt-4 rounded-lg border p-4" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-background)' }}>
+                  <h3 className="font-semibold mb-2" style={{ color: 'var(--color-text)' }}>
+                    {resetMode === 'full' ? 'Full Reset Confirmation' : 'Data Wipe Confirmation'}
+                  </h3>
+                  <p className="text-sm mb-3" style={{ color: 'var(--color-text-secondary)' }}>
+                    {resetMode === 'full'
+                      ? 'Full reset will delete all data and require setup again. Type RESET to confirm.'
+                      : 'Wipe removes courses, batches, enrollments, assessments, tickets, notifications, monitoring data, and non-admin users. Type WIPE to confirm.'}
+                  </p>
+                  <div className="flex flex-col md:flex-row gap-2 items-start md:items-center">
+                    <input
+                      type="text"
+                      value={resetConfirm}
+                      onChange={(e) => setResetConfirm(e.target.value)}
+                      className="px-3 py-2 rounded-md border w-full md:w-64"
+                      style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-background)', color: 'var(--color-text)' }}
+                      placeholder={resetMode === 'full' ? 'Type RESET' : 'Type WIPE'}
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={handleResetInstitute}
+                        className="px-3 py-2 rounded-md text-sm text-white"
+                        style={{ backgroundColor: resetMode === 'full' ? '#dc2626' : '#d97706' }}
+                      >
+                        Confirm
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setResetDialogOpen(false); setResetConfirm('') }}
+                        className="px-3 py-2 rounded-md text-sm border border-gray-300"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

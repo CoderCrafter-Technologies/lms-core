@@ -988,6 +988,13 @@ class ApiService {
     });
   }
 
+  async resetInstitute(payload: { mode: 'wipe' | 'full' }) {
+    return this.request('/admin/reset', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
   async getAdminLicensingPublicSummary() {
     return this.request('/admin/licensing/public-summary');
   }

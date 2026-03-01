@@ -913,6 +913,10 @@ export default function SetupPage() {
         {customDomain.records.length > 0 && (
           <div className="space-y-2">
             <p className="text-sm text-gray-700 dark:text-gray-300">DNS records to add:</p>
+            <p className="text-xs text-gray-500">
+              Note: For subdomains (example: <code>app.example.com</code>), the A record host shows the subdomain.
+              If your DNS provider uses multi-part TLDs (like <code>.co.in</code>), use the full hostname if required.
+            </p>
             <div className="grid grid-cols-1 gap-2">
               {customDomain.records.map((record, idx) => (
                 <div

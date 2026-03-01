@@ -66,6 +66,14 @@ const normalizeDomain = (value = '') => {
   return withoutPort.trim();
 };
 
+const getDnsHostLabel = (domain = '') => {
+  const normalized = normalizeDomain(domain);
+  if (!normalized) return '@';
+  const parts = normalized.split('.').filter(Boolean);
+  if (parts.length <= 2) return '@';
+  return parts.slice(0, -2).join('.');
+};
+
 const upsertCustomDomain = (customDomains = [], entry) => {
   const filtered = (customDomains || []).filter((item) => item?.domain !== entry.domain);
   return [...filtered, entry];
@@ -305,7 +313,7 @@ router.post('/custom-domains/prepare', async (req, res) => {
 
   const records = [
     ...(entry.expectedIp
-      ? [{ type: 'A', host: '@', value: entry.expectedIp }]
+      ? [{ type: 'A', host: getDnsHostLabel(entry.domain), value: entry.expectedIp }]
       : []),
     { type: 'TXT', host: '_lms-verify', value: entry.verificationToken }
   ];

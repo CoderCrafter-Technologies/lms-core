@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { Spinner } from '@/components/ui/Spinner'
-import { Building2, Palette, Globe, Database, UserCircle, Mail, ChevronRight, ChevronLeft, Check, Sparkles } from 'lucide-react'
+import { Building2, Palette, Globe, Database, UserCircle, Mail, ChevronRight, ChevronLeft, Check, Sparkles, Copy } from 'lucide-react'
 
 type SetupForm = {
   institute: {
@@ -150,6 +150,20 @@ type DnsRecord = {
   value: string
 }
 
+type DnsDiagnostics = {
+  checkedAt: string
+  expectedTxtHost: string
+  expectedTxtValue: string
+  resolvedTxt: string[]
+  expectedAHost: string
+  expectedAValue: string
+  resolvedA: string[]
+  matchTxt: boolean
+  matchA: boolean
+  errorTxt?: string | null
+  errorA?: string | null
+}
+
 export default function SetupPage() {
   const router = useRouter()
   const [form, setForm] = useState<SetupForm>(initialForm)
@@ -175,6 +189,8 @@ export default function SetupPage() {
     caddyMessage: '',
     savedAt: ''
   })
+  const [dnsDiagnostics, setDnsDiagnostics] = useState<DnsDiagnostics | null>(null)
+  const [dnsDiagnosticsMessage, setDnsDiagnosticsMessage] = useState<string>('')
   const lastPreparedDomainRef = useRef<string>('')
   const [domainBusy, setDomainBusy] = useState(false)
   const apiOrigin = useMemo(() => (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/api\/?$/, ''), [])
@@ -318,6 +334,8 @@ export default function SetupPage() {
 
     try {
       setDomainBusy(true)
+      setDnsDiagnostics(null)
+      setDnsDiagnosticsMessage('')
       const response = await api.prepareCustomDomain({
         domain,
         serverIp: customDomain.serverIp.trim() || undefined
@@ -358,6 +376,8 @@ export default function SetupPage() {
 
     try {
       setDomainBusy(true)
+      setDnsDiagnostics(null)
+      setDnsDiagnosticsMessage('')
       const response = await api.verifyCustomDomain({
         domain,
         serverIp: customDomain.serverIp.trim() || undefined
@@ -427,25 +447,28 @@ export default function SetupPage() {
       const response = await api.diagnoseCustomDomain({ domain })
       const data = response?.data
       if (!data) {
-        toast.error('No diagnostics available')
+        setDnsDiagnostics(null)
+        setDnsDiagnosticsMessage('No diagnostics available yet.')
         return
       }
 
-      const lines = [
-        `TXT host: ${data.expected?.txtHost || '-'}`,
-        `TXT value: ${data.expected?.txtValue || '-'}`,
-        `Resolved TXT: ${(data.resolved?.txtRecords || []).join(', ') || 'none'}`,
-        `A host: ${data.expected?.aHost || '-'}`,
-        `A value: ${data.expected?.aValue || '-'}`,
-        `Resolved A: ${(data.resolved?.aRecords || []).join(', ') || 'none'}`,
-        `Match TXT: ${data.matches?.txt ? 'yes' : 'no'}`,
-        `Match A: ${data.matches?.a ? 'yes' : 'no'}`
-      ]
-      toast.message('DNS diagnostics', {
-        description: lines.join('\n')
+      setDnsDiagnostics({
+        checkedAt: data.checkedAt || '',
+        expectedTxtHost: data.expected?.txtHost || '',
+        expectedTxtValue: data.expected?.txtValue || '',
+        resolvedTxt: Array.isArray(data.resolved?.txtRecords) ? data.resolved.txtRecords : [],
+        expectedAHost: data.expected?.aHost || '',
+        expectedAValue: data.expected?.aValue || '',
+        resolvedA: Array.isArray(data.resolved?.aRecords) ? data.resolved.aRecords : [],
+        matchTxt: Boolean(data.matches?.txt),
+        matchA: Boolean(data.matches?.a),
+        errorTxt: data.errors?.txt || null,
+        errorA: data.errors?.a || null
       })
+      setDnsDiagnosticsMessage('')
     } catch (error: any) {
-      toast.error(error?.message || 'Failed to run diagnostics')
+      setDnsDiagnostics(null)
+      setDnsDiagnosticsMessage(error?.message || 'Failed to run diagnostics')
     } finally {
       setDomainBusy(false)
     }
@@ -453,8 +476,25 @@ export default function SetupPage() {
 
   const copyToClipboard = async (value: string) => {
     try {
-      await navigator.clipboard.writeText(value)
-      toast.success('Copied to clipboard')
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value)
+        toast.success('Copied to clipboard')
+        return
+      }
+      const textArea = document.createElement('textarea')
+      textArea.value = value
+      textArea.style.position = 'fixed'
+      textArea.style.opacity = '0'
+      document.body.appendChild(textArea)
+      textArea.focus()
+      textArea.select()
+      const ok = document.execCommand('copy')
+      document.body.removeChild(textArea)
+      if (ok) {
+        toast.success('Copied to clipboard')
+      } else {
+        toast.error('Failed to copy')
+      }
     } catch {
       toast.error('Failed to copy')
     }
@@ -889,6 +929,8 @@ export default function SetupPage() {
                     domain: value,
                     records: value.trim().toLowerCase() === lastPreparedDomainRef.current ? prev.records : []
                   }))
+                  setDnsDiagnostics(null)
+                  setDnsDiagnosticsMessage('')
                 }}
                 onBlur={handleDomainBlur}
               />
@@ -958,6 +1000,44 @@ export default function SetupPage() {
           )}
         </div>
 
+        {(dnsDiagnostics || dnsDiagnosticsMessage) && (
+          <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-3 space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-semibold text-gray-900 dark:text-white">DNS Check Results</span>
+              {dnsDiagnostics && (
+                <span className={`text-xs px-2 py-1 rounded-full ${dnsDiagnostics.matchTxt && dnsDiagnostics.matchA ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'}`}>
+                  {dnsDiagnostics.matchTxt && dnsDiagnostics.matchA ? 'All good' : 'Needs attention'}
+                </span>
+              )}
+            </div>
+            {dnsDiagnosticsMessage && (
+              <p className="text-xs text-red-600 dark:text-red-400">{dnsDiagnosticsMessage}</p>
+            )}
+            {dnsDiagnostics && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                <div className="space-y-1">
+                  <p className="font-medium text-gray-700 dark:text-gray-300">TXT Record</p>
+                  <p className="text-gray-600 dark:text-gray-400">Host: <span className="font-mono">{dnsDiagnostics.expectedTxtHost || '-'}</span></p>
+                  <p className="text-gray-600 dark:text-gray-400">Value: <span className="font-mono">{dnsDiagnostics.expectedTxtValue || '-'}</span></p>
+                  <p className="text-gray-600 dark:text-gray-400">Resolved: <span className="font-mono">{dnsDiagnostics.resolvedTxt.length ? dnsDiagnostics.resolvedTxt.join(', ') : 'not found yet'}</span></p>
+                  <p className={`text-xs font-semibold ${dnsDiagnostics.matchTxt ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'}`}>
+                    {dnsDiagnostics.matchTxt ? 'TXT record is visible' : 'TXT record not detected yet'}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <p className="font-medium text-gray-700 dark:text-gray-300">A Record</p>
+                  <p className="text-gray-600 dark:text-gray-400">Host: <span className="font-mono">{dnsDiagnostics.expectedAHost || '-'}</span></p>
+                  <p className="text-gray-600 dark:text-gray-400">Value: <span className="font-mono">{dnsDiagnostics.expectedAValue || '-'}</span></p>
+                  <p className="text-gray-600 dark:text-gray-400">Resolved: <span className="font-mono">{dnsDiagnostics.resolvedA.length ? dnsDiagnostics.resolvedA.join(', ') : 'not found yet'}</span></p>
+                  <p className={`text-xs font-semibold ${dnsDiagnostics.matchA ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'}`}>
+                    {dnsDiagnostics.matchA ? 'A record is visible' : 'A record not detected yet'}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {customDomain.records.length > 0 && (
           <div className="space-y-2">
             <p className="text-sm text-gray-700 dark:text-gray-300">DNS records to add:</p>
@@ -965,37 +1045,46 @@ export default function SetupPage() {
               Note: For subdomains (example: <code>app.example.com</code>), the A record host shows the subdomain and the TXT host becomes
               <code>_lms-verify.app</code>. If your DNS provider uses multi-part TLDs (like <code>.co.in</code>), use the full hostname if required.
             </p>
-            <div className="grid grid-cols-1 gap-2">
-              {customDomain.records.map((record, idx) => (
-                <div
-                  key={`${record.type}-${record.host}-${idx}`}
-                  className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 rounded-lg border border-gray-200 dark:border-gray-700 p-3"
-                >
-                  <div className="text-sm">
-                    <span className="font-semibold text-gray-900 dark:text-white">{record.type}</span>
-                    <span className="mx-2 text-gray-400">•</span>
-                    <span className="text-gray-700 dark:text-gray-300">Host: {record.host}</span>
-                    <span className="mx-2 text-gray-400">•</span>
-                    <span className="text-gray-700 dark:text-gray-300">Value: {record.value}</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => copyToClipboard(record.host)}
-                      className="px-3 py-1 text-xs rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200"
-                    >
-                      Copy Host
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => copyToClipboard(record.value)}
-                      className="px-3 py-1 text-xs rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200"
-                    >
-                      Copy Value
-                    </button>
-                  </div>
-                </div>
-              ))}
+            <div className="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-50 dark:bg-gray-900/60 text-gray-600 dark:text-gray-300">
+                  <tr>
+                    <th className="text-left px-3 py-2 font-medium">Type</th>
+                    <th className="text-left px-3 py-2 font-medium">Host</th>
+                    <th className="text-left px-3 py-2 font-medium">Value</th>
+                    <th className="text-right px-3 py-2 font-medium">Copy</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {customDomain.records.map((record, idx) => (
+                    <tr key={`${record.type}-${record.host}-${idx}`} className="border-t border-gray-200 dark:border-gray-700">
+                      <td className="px-3 py-2 font-semibold text-gray-900 dark:text-white">{record.type}</td>
+                      <td className="px-3 py-2 text-gray-700 dark:text-gray-300 font-mono">{record.host}</td>
+                      <td className="px-3 py-2 text-gray-700 dark:text-gray-300 font-mono break-all">{record.value}</td>
+                      <td className="px-3 py-2">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(record.host)}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200"
+                          >
+                            <Copy className="w-3 h-3" />
+                            Host
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(record.value)}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200"
+                          >
+                            <Copy className="w-3 h-3" />
+                            Value
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
             {customDomain.lastCheckedAt && (
               <p className="text-xs text-gray-500 dark:text-gray-400">

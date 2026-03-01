@@ -9,14 +9,19 @@ const resolveSocketUrl = (serverUrl?: string) => {
     return serverUrl || "http://localhost:5000";
   }
 
-  const { origin, port } = window.location;
+  const { origin, port, protocol, hostname } = window.location;
   const isDefaultPort = !port || port === "80" || port === "443";
 
   if (isDefaultPort) {
     return origin;
   }
 
-  return serverUrl || "http://localhost:5000";
+  if (serverUrl) {
+    return serverUrl;
+  }
+
+  const fallbackProtocol = protocol || "http:";
+  return `${fallbackProtocol}//${hostname}:5000`;
 };
 
 export function initSocket(serverUrl?: string) {

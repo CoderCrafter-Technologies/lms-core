@@ -19,14 +19,19 @@ const resolveApiBaseUrl = () => {
     return envBase || 'http://localhost:5001/api';
   }
 
-  const { origin, port } = window.location;
+  const { origin, port, protocol, hostname } = window.location;
   const isDefaultPort = !port || port === '80' || port === '443';
 
   if (isDefaultPort) {
     return `${origin}/api`;
   }
 
-  return envBase || 'http://localhost:5001/api';
+  if (envBase) {
+    return envBase;
+  }
+
+  const fallbackProtocol = protocol || 'http:';
+  return `${fallbackProtocol}//${hostname}:5000/api`;
 };
 
 const API_BASE_URL = resolveApiBaseUrl();

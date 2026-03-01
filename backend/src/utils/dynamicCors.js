@@ -28,7 +28,8 @@ const buildOriginsFromEnv = () =>
 const cache = {
   origins: [],
   expiresAt: 0,
-  refreshing: null
+  refreshing: null,
+  setupCompleted: false
 };
 
 const refreshAllowedOrigins = async () => {
@@ -42,6 +43,7 @@ const refreshAllowedOrigins = async () => {
       const customDomains = Array.isArray(setupSettings?.customDomains)
         ? setupSettings.customDomains
         : [];
+      cache.setupCompleted = Boolean(setupSettings?.completed);
       const activeDomains = customDomains.filter((entry) => entry?.savedAt || entry?.status === 'verified');
       const origins = [
         ...buildOriginsFromEnv(),
@@ -64,6 +66,7 @@ const getAllowedOrigins = () => cache.origins;
 
 const isOriginAllowed = (origin) => {
   if (!origin) return true;
+  if (!cache.setupCompleted) return true;
   const normalized = normalizeOrigin(origin);
   if (!normalized) return true;
   const allowed = getAllowedOrigins();

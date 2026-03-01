@@ -106,6 +106,7 @@ class ApiService {
       endpoint.startsWith('/setup/public-settings') ||
       endpoint.startsWith('/setup/custom-domains/prepare') ||
       endpoint.startsWith('/setup/custom-domains/verify') ||
+      endpoint.startsWith('/setup/custom-domains/diagnose') ||
       endpoint.startsWith('/setup/custom-domains/apply-caddy') ||
       endpoint.startsWith('/setup/brand-assets') ||
       endpoint.startsWith('/setup/complete') ||

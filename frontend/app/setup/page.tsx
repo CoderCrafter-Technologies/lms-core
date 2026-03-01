@@ -409,16 +409,25 @@ export default function SetupPage() {
 
       if (verified) {
         toast.success('Domain verified successfully')
-        try {
-          const applyResponse = await api.applyCaddyConfig({ domain, email: form.institute.supportEmail })
+        setDomainBusy(false)
+        if (form.institute.supportEmail?.trim()) {
+          api.applyCaddyConfig({ domain, email: form.institute.supportEmail })
+            .then((applyResponse: any) => {
+              setCustomDomain((prev) => ({
+                ...prev,
+                caddyMessage: applyResponse?.message || 'Caddy configuration applied'
+              }))
+            })
+            .catch((applyError: any) => {
+              setCustomDomain((prev) => ({
+                ...prev,
+                caddyMessage: applyError?.message || 'Failed to apply Caddy config'
+              }))
+            })
+        } else {
           setCustomDomain((prev) => ({
             ...prev,
-            caddyMessage: applyResponse?.message || 'Caddy configuration applied'
-          }))
-        } catch (applyError: any) {
-          setCustomDomain((prev) => ({
-            ...prev,
-            caddyMessage: applyError?.message || 'Failed to apply Caddy config'
+            caddyMessage: 'Add a support email to enable automatic HTTPS.'
           }))
         }
       } else {
@@ -645,6 +654,26 @@ export default function SetupPage() {
           }]
         }
       })
+      if (form.institute.supportEmail?.trim()) {
+        api.applyCaddyConfig({ domain, email: form.institute.supportEmail })
+          .then((applyResponse: any) => {
+            setCustomDomain((prev) => ({
+              ...prev,
+              caddyMessage: applyResponse?.message || 'Caddy configuration applied'
+            }))
+          })
+          .catch((applyError: any) => {
+            setCustomDomain((prev) => ({
+              ...prev,
+              caddyMessage: applyError?.message || 'Failed to apply Caddy config'
+            }))
+          })
+      } else {
+        setCustomDomain((prev) => ({
+          ...prev,
+          caddyMessage: 'Add a support email to enable automatic HTTPS.'
+        }))
+      }
       toast.success('Domain saved successfully')
     } catch (error: any) {
       toast.error(error?.message || 'Failed to save domain')

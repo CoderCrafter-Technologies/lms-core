@@ -46,6 +46,7 @@ export default function InstructorsPage() {
   const [currentInstructor, setCurrentInstructor] = useState<any | null>(null)
   const [availableCourses, setAvailableCourses] = useState<Course[]>([])
   const [resettingInstructorId, setResettingInstructorId] = useState<string | null>(null)
+  const [deletingInstructorId, setDeletingInstructorId] = useState<string | null>(null)
   
   // Check permissions
   const canManageInstructors = user?.role.name === 'ADMIN' || user?.role.name === 'MANAGER'
@@ -147,6 +148,26 @@ export default function InstructorsPage() {
       toast.error('Failed to reset password')
     } finally {
       setResettingInstructorId(null)
+    }
+  }
+
+  const handleDeleteInstructor = async (instructor: any) => {
+    const instructorId = instructor?._id || instructor?.id
+    if (!instructorId || user?.role.name !== 'ADMIN') return
+
+    const name = instructor?.name || `${instructor?.firstName || ''} ${instructor?.lastName || ''}`.trim()
+    if (!window.confirm(`Delete instructor ${name || 'this instructor'}? This will deactivate the account.`)) return
+
+    try {
+      setDeletingInstructorId(instructorId)
+      await api.deleteAdminInstructor(instructorId)
+      toast.success('Instructor deleted successfully')
+      fetchInstructors()
+    } catch (error) {
+      console.error('Error deleting instructor:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to delete instructor')
+    } finally {
+      setDeletingInstructorId(null)
     }
   }
 
@@ -363,6 +384,16 @@ export default function InstructorsPage() {
                               onClick={() => handleResetInstructorPassword(instructor)}
                             >
                               {resettingInstructorId === (instructor._id || instructor.id) ? 'Resetting...' : 'Reset Password'}
+                            </Button>
+                          )}
+                          {user?.role.name === 'ADMIN' && (
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              disabled={deletingInstructorId === (instructor._id || instructor.id)}
+                              onClick={() => handleDeleteInstructor(instructor)}
+                            >
+                              {deletingInstructorId === (instructor._id || instructor.id) ? 'Deleting...' : 'Delete'}
                             </Button>
                           )}
                         </div>

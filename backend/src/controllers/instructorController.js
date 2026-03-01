@@ -160,10 +160,17 @@ const createInstructor = asyncHandler(async (req, res) => {
   const instructor = await userRepository.create(instructorData);
 
   // Send welcome email with credentials
+  let welcomeEmailResult = { success: false, skipped: false, message: '' };
   try {
-    await emailService.sendInstructorWelcomeEmail(instructor, instructorPassword);
+    const result = await emailService.sendInstructorWelcomeEmail(instructor, instructorPassword);
+    welcomeEmailResult = result || welcomeEmailResult;
   } catch (error) {
     console.error('Failed to send welcome email:', error);
+    welcomeEmailResult = {
+      success: false,
+      skipped: false,
+      message: error?.message || 'Failed to send welcome email'
+    };
     // Don't fail the request if email fails
   }
 
@@ -181,6 +188,8 @@ const createInstructor = asyncHandler(async (req, res) => {
   res.status(201).json({
     success: true,
     message: 'Instructor created successfully',
+    emailStatus: welcomeEmailResult,
+    temporaryPassword: welcomeEmailResult?.success ? undefined : instructorPassword,
     data: {
       id: instructor._id,
       firstName: instructor.firstName,

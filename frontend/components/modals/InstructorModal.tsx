@@ -225,6 +225,19 @@ export function InstructorModal({
         : await api.createAdminInstructor(payload)
       const instructorId = result.data.id || result.data._id || instructor?.id
 
+      if (!isEditing) {
+        const emailStatus = result?.emailStatus
+        const temporaryPassword = result?.temporaryPassword
+        if (emailStatus?.skipped) {
+          toast.warning('Instructor created, but email was skipped (SMTP disabled).')
+        } else if (emailStatus && emailStatus.success === false) {
+          toast.warning('Instructor created, but email delivery failed.')
+        }
+        if (temporaryPassword) {
+          toast.info(`Temporary password: ${temporaryPassword}`)
+        }
+      }
+
       // Only attempt to add assignment if we have a new assignment selected
       if (newAssignment.courseId && newAssignment.batchId && instructorId) {
         await handleAddAssignment(instructorId)

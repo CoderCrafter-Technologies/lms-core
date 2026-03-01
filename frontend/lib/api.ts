@@ -1158,7 +1158,7 @@ class ApiService {
   }
 
   async deleteAdminInstructor(instructorId: string) {
-    return this.request(`/admin/instructors/${instructorId}`, {
+    return this.request(`/instructors/${instructorId}`, {
       method: 'DELETE',
     });
   }

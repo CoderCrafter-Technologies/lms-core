@@ -74,6 +74,15 @@ const getDnsHostLabel = (domain = '') => {
   return parts.slice(0, -2).join('.');
 };
 
+const getTxtHostLabel = (domain = '') => {
+  const normalized = normalizeDomain(domain);
+  if (!normalized) return '_lms-verify';
+  const parts = normalized.split('.').filter(Boolean);
+  if (parts.length <= 2) return '_lms-verify';
+  const sub = parts.slice(0, -2).join('.');
+  return `_lms-verify.${sub}`;
+};
+
 const upsertCustomDomain = (customDomains = [], entry) => {
   const filtered = (customDomains || []).filter((item) => item?.domain !== entry.domain);
   return [...filtered, entry];
@@ -315,7 +324,7 @@ router.post('/custom-domains/prepare', async (req, res) => {
     ...(entry.expectedIp
       ? [{ type: 'A', host: getDnsHostLabel(entry.domain), value: entry.expectedIp }]
       : []),
-    { type: 'TXT', host: '_lms-verify', value: entry.verificationToken }
+    { type: 'TXT', host: getTxtHostLabel(entry.domain), value: entry.verificationToken }
   ];
 
   return res.json({
@@ -364,6 +373,8 @@ router.post('/custom-domains/verify', async (req, res) => {
   const expectedIp = serverIp || existing?.expectedIp || '';
   let txtMatch = false;
   let aMatch = !expectedIp;
+  let txtError = null;
+  let aError = null;
 
   try {
     const txtRecords = await dns.resolveTxt(`_lms-verify.${domain}`);
@@ -371,6 +382,7 @@ router.post('/custom-domains/verify', async (req, res) => {
     txtMatch = flattened.includes(String(existing.verificationToken || '').trim());
   } catch {
     txtMatch = false;
+    txtError = 'TXT lookup failed';
   }
 
   if (expectedIp) {
@@ -379,6 +391,7 @@ router.post('/custom-domains/verify', async (req, res) => {
       aMatch = aRecords.includes(expectedIp);
     } catch {
       aMatch = false;
+      aError = 'A lookup failed';
     }
   }
 
@@ -403,10 +416,81 @@ router.post('/custom-domains/verify', async (req, res) => {
       verified,
       checks: {
         txt: txtMatch,
-        a: expectedIp ? aMatch : null
+        a: expectedIp ? aMatch : null,
+        txtError,
+        aError,
+        expectedTxtHost: `_lms-verify.${domain}`,
+        expectedAHost: domain
       },
       status: updatedEntry.status,
       lastCheckedAt: updatedEntry.lastCheckedAt
+    }
+  });
+});
+
+router.post('/custom-domains/diagnose', async (req, res) => {
+  const domain = normalizeDomain(req.body?.domain || '');
+  if (!domain) {
+    return res.status(400).json({ success: false, message: 'Domain is required' });
+  }
+
+  const setupSettings = await systemSettingsStore.getSetupSettings();
+  const existing = (setupSettings?.customDomains || []).find((item) => item?.domain === domain);
+  if (!existing) {
+    return res.status(404).json({ success: false, message: 'Domain not prepared yet' });
+  }
+
+  const expectedIp = existing?.expectedIp || '';
+  const expectedToken = String(existing?.verificationToken || '').trim();
+  const expectedTxtHost = `_lms-verify.${domain}`;
+  const now = new Date().toISOString();
+
+  let txtRecords = [];
+  let aRecords = [];
+  let txtError = null;
+  let aError = null;
+
+  try {
+    const rawTxt = await dns.resolveTxt(expectedTxtHost);
+    txtRecords = rawTxt.flat().map((v) => String(v || '').trim()).filter(Boolean);
+  } catch (error) {
+    txtError = error?.message || 'TXT lookup failed';
+  }
+
+  if (expectedIp) {
+    try {
+      aRecords = await dns.resolve4(domain);
+    } catch (error) {
+      aError = error?.message || 'A lookup failed';
+    }
+  }
+
+  const txtMatch = expectedToken ? txtRecords.includes(expectedToken) : false;
+  const aMatch = expectedIp ? aRecords.includes(expectedIp) : true;
+
+  return res.json({
+    success: true,
+    data: {
+      checkedAt: now,
+      domain,
+      expected: {
+        aHost: domain,
+        aValue: expectedIp || null,
+        txtHost: expectedTxtHost,
+        txtValue: expectedToken || null
+      },
+      resolved: {
+        aRecords,
+        txtRecords
+      },
+      matches: {
+        a: aMatch,
+        txt: txtMatch
+      },
+      errors: {
+        a: aError,
+        txt: txtError
+      }
     }
   });
 });

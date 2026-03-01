@@ -344,6 +344,13 @@ class ApiService {
     });
   }
 
+  async diagnoseCustomDomain(payload: { domain: string }) {
+    return this.request('/setup/custom-domains/diagnose', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
   async completeSetup(payload: {
     institute: {
       name: string;

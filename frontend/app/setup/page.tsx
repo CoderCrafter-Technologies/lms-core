@@ -411,6 +411,46 @@ export default function SetupPage() {
     }
   }
 
+  const handleDiagnoseDomain = async () => {
+    const domain = customDomain.domain.trim().toLowerCase()
+    if (!domain) {
+      toast.error('Please enter a domain name')
+      return
+    }
+    if (!isValidDomain(domain)) {
+      toast.error('Please enter a valid domain name')
+      return
+    }
+
+    try {
+      setDomainBusy(true)
+      const response = await api.diagnoseCustomDomain({ domain })
+      const data = response?.data
+      if (!data) {
+        toast.error('No diagnostics available')
+        return
+      }
+
+      const lines = [
+        `TXT host: ${data.expected?.txtHost || '-'}`,
+        `TXT value: ${data.expected?.txtValue || '-'}`,
+        `Resolved TXT: ${(data.resolved?.txtRecords || []).join(', ') || 'none'}`,
+        `A host: ${data.expected?.aHost || '-'}`,
+        `A value: ${data.expected?.aValue || '-'}`,
+        `Resolved A: ${(data.resolved?.aRecords || []).join(', ') || 'none'}`,
+        `Match TXT: ${data.matches?.txt ? 'yes' : 'no'}`,
+        `Match A: ${data.matches?.a ? 'yes' : 'no'}`
+      ]
+      toast.message('DNS diagnostics', {
+        description: lines.join('\n')
+      })
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to run diagnostics')
+    } finally {
+      setDomainBusy(false)
+    }
+  }
+
   const copyToClipboard = async (value: string) => {
     try {
       await navigator.clipboard.writeText(value)
@@ -903,6 +943,14 @@ export default function SetupPage() {
           >
             Verify DNS
           </button>
+          <button
+            type="button"
+            onClick={handleDiagnoseDomain}
+            disabled={domainBusy || !customDomain.domain}
+            className="px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 disabled:opacity-60"
+          >
+            Diagnose DNS
+          </button>
           {customDomain.status && (
             <span className={`px-3 py-2 rounded-xl text-sm font-medium ${customDomain.status === 'verified' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'}`}>
               {customDomain.status === 'verified' ? 'Verified' : 'Pending'}
@@ -914,8 +962,8 @@ export default function SetupPage() {
           <div className="space-y-2">
             <p className="text-sm text-gray-700 dark:text-gray-300">DNS records to add:</p>
             <p className="text-xs text-gray-500">
-              Note: For subdomains (example: <code>app.example.com</code>), the A record host shows the subdomain.
-              If your DNS provider uses multi-part TLDs (like <code>.co.in</code>), use the full hostname if required.
+              Note: For subdomains (example: <code>app.example.com</code>), the A record host shows the subdomain and the TXT host becomes
+              <code>_lms-verify.app</code>. If your DNS provider uses multi-part TLDs (like <code>.co.in</code>), use the full hostname if required.
             </p>
             <div className="grid grid-cols-1 gap-2">
               {customDomain.records.map((record, idx) => (

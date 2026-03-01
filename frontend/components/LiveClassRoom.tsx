@@ -437,7 +437,7 @@ export default function LiveClassRoom({ classData, user, enrollmentId, onLeave }
       return
     }
 
-    const roomId = classData.roomId || classData._id || `fallback_${Date.now()}`
+    const roomId = classData.roomId || classData.id || classData._id || `fallback_${Date.now()}`
     debugLog('Joining class', { roomId })
     
     socketRef.current.emit('join-class', {

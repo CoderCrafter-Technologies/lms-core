@@ -42,6 +42,8 @@ const getLiveClasses = asyncHandler(async (req, res) => {
   };
 
   const result = await liveClassRepository.paginate(filters, options);
+
+  result.documents = await liveClassRepository.ensureRoomIds(result.documents);
   
   res.json({
     success: true,
@@ -62,20 +64,24 @@ const getLiveClassesByFilter = asyncHandler(async (req, res) => {
       { path: 'instructorId', select: 'firstName lastName email' }
     ];
 
-    const upcomingClasses = await liveClassRepository.find(
+    let upcomingClasses = await liveClassRepository.find(
       { status: { $in: ['SCHEDULED', 'LIVE'] } },
       { populate: commonPopulate, sort: { scheduledStartTime: 1 } }
     );
 
-    const ongoingClasses = await liveClassRepository.find(
+    let ongoingClasses = await liveClassRepository.find(
       { status: 'LIVE' },
       { populate: commonPopulate, sort: { scheduledStartTime: 1 } }
     );
 
-    const pastClasses = await liveClassRepository.find(
+    let pastClasses = await liveClassRepository.find(
       { status: 'ENDED' },
       { populate: commonPopulate, sort: { scheduledStartTime: 1 } }
     );
+
+    upcomingClasses = await liveClassRepository.ensureRoomIds(upcomingClasses);
+    ongoingClasses = await liveClassRepository.ensureRoomIds(ongoingClasses);
+    pastClasses = await liveClassRepository.ensureRoomIds(pastClasses);
 
     return res.json({
       success: true,
@@ -100,7 +106,7 @@ const getLiveClass = asyncHandler(async (req, res) => {
   console.log(req.params.id, "Requested Live Class ID")
   const { id } = req.params;
   
-  const liveClass = await liveClassRepository.findById(id, {
+  let liveClass = await liveClassRepository.findById(id, {
     populate: [
       { 
         path: 'batchId', 
@@ -118,6 +124,8 @@ const getLiveClass = asyncHandler(async (req, res) => {
       message: 'Live class not found'
     });
   }
+
+  liveClass = await liveClassRepository.ensureRoomId(liveClass);
 
   res.json({
     success: true,
@@ -133,7 +141,7 @@ const getLiveClassByRoomId = asyncHandler(async (req, res) => {
   console.log(req.params.roomId, "Requested Live Class By Room ID")
   const { roomId } = req.params;
   
-  const liveClass = await liveClassRepository.findOne({roomId: roomId}, {
+  let liveClass = await liveClassRepository.findOne({roomId: roomId}, {
     populate: [
       { 
         path: 'batchId', 
@@ -144,6 +152,21 @@ const getLiveClassByRoomId = asyncHandler(async (req, res) => {
       { path: 'createdBy', select: 'firstName lastName' }
     ]
   });
+
+  if (!liveClass) {
+    // Fallback: allow class ID to be used as roomId
+    liveClass = await liveClassRepository.findById(roomId, {
+      populate: [
+        { 
+          path: 'batchId', 
+          select: 'name batchCode courseId',
+          populate: { path: 'courseId', select: 'title description' }
+        },
+        { path: 'instructorId', select: 'firstName lastName email' },
+        { path: 'createdBy', select: 'firstName lastName' }
+      ]
+    });
+  }
   
   if (!liveClass) {
     return res.status(404).json({
@@ -151,6 +174,8 @@ const getLiveClassByRoomId = asyncHandler(async (req, res) => {
       message: 'Live class not found'
     });
   }
+
+  liveClass = await liveClassRepository.ensureRoomId(liveClass);
 
   res.json({
     success: true,
@@ -388,7 +413,8 @@ const cancelLiveClass = asyncHandler(async (req, res) => {
 const getLiveClassesByBatch = asyncHandler(async (req, res) => {
   const { batchId } = req.params;
   
-  const liveClasses = await liveClassRepository.findByBatch(batchId);
+  let liveClasses = await liveClassRepository.findByBatch(batchId);
+  liveClasses = await liveClassRepository.ensureRoomIds(liveClasses);
   const classItems = liveClasses.map((liveClass) => (
     typeof liveClass.toObject === 'function' ? liveClass.toObject() : liveClass
   ));

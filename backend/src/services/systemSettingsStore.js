@@ -42,6 +42,124 @@ const DEFAULT_SETTINGS = {
       whiteLabelEnabled: false,
       showCoderCrafterWatermark: true
     },
+    publicLanding: {
+      enabled: true,
+      layoutPreset: 'aurora',
+      showHeader: true,
+      sections: [
+        { id: 'hero', label: 'Hero', enabled: true, layout: 'centered' },
+        { id: 'courses', label: 'Popular Courses', enabled: true, layout: 'grid-4' },
+        { id: 'features', label: 'Key Features', enabled: true, layout: 'cards' },
+        { id: 'stats', label: 'Stats', enabled: true, layout: 'metrics' },
+        { id: 'cta', label: 'Call To Action', enabled: true, layout: 'banner' }
+      ],
+      content: {
+        hero: {
+          headline: 'Launch Your Tech Career with',
+          subheadline: 'Master in-demand technologies with industry experts. Learn with hands-on projects.',
+          primaryCtaText: 'Get Started',
+          primaryCtaUrl: '/auth/register',
+          secondaryCtaText: 'Explore Courses',
+          secondaryCtaUrl: '/auth/login'
+        },
+        courses: {
+          title: 'Most Popular Courses',
+          subtitle: 'Join thousands of students learning the most in-demand skills in the tech industry.',
+          items: [
+            {
+              title: 'Full Stack Development',
+              description: 'Master MERN stack, React, Node.js and build real-world applications.',
+              gradient: 'from-blue-500 to-blue-700'
+            },
+            {
+              title: 'DevOps Engineering',
+              description: 'Learn Docker, Kubernetes, AWS, CI/CD and infrastructure automation.',
+              gradient: 'from-green-500 to-green-700'
+            },
+            {
+              title: 'Mobile Development',
+              description: 'Build iOS and Android apps with React Native, Flutter and Swift.',
+              gradient: 'from-purple-500 to-purple-700'
+            },
+            {
+              title: 'Data Science and AI',
+              description: 'Master Python, Machine Learning, TensorFlow and data visualization.',
+              gradient: 'from-red-500 to-red-700'
+            }
+          ]
+        },
+        features: {
+          title: 'Why Choose Us?',
+          items: [
+            {
+              title: 'Industry Expert Instructors',
+              description: 'Learn from professionals working at top tech companies with real-world experience.'
+            },
+            {
+              title: 'Live Interactive Classes',
+              description: 'Live sessions with code collaboration, whiteboard, and real-time doubt solving.'
+            },
+            {
+              title: 'Career Support',
+              description: 'Resume building, mock interviews, and placement assistance to launch your career.'
+            }
+          ]
+        },
+        stats: {
+          items: [
+            { value: '5000+', label: 'Students Trained' },
+            { value: '100+', label: 'Industry Experts' },
+            { value: '85%', label: 'Placement Rate' },
+            { value: '24/7', label: 'Mentor Support' }
+          ]
+        },
+        cta: {
+          headline: 'Ready to launch your tech career?',
+          subheadline: 'Join thousands of students who have transformed their careers.',
+          buttonText: 'Get Started Today',
+          buttonUrl: '/auth/register'
+        }
+      },
+      styles: {
+        pageBackground: '',
+        heroBackground: '',
+        coursesBackground: '',
+        featuresBackground: '',
+        statsBackground: '',
+        ctaBackground: '',
+        textColor: '',
+        secondaryTextColor: '',
+        headingColor: '',
+        primaryColor: '',
+        accentColor: '',
+        fontFamily: '',
+        headingFontFamily: '',
+        baseFontSize: 14,
+        heroHeadingSize: 56,
+        sectionHeadingSize: 32
+      }
+    },
+    dashboardTheme: {
+      fontFamily: 'Inter, system-ui, sans-serif',
+      baseFontSize: 14,
+      headingFontSize: 18,
+      textColor: '',
+      backgroundColor: '',
+      surfaceColor: '',
+      cardBackground: '',
+      cardBorder: '',
+      sidebarColor: '',
+      sidebarTextColor: '',
+      primaryColor: '',
+      accentColor: '',
+      modalBackground: '',
+      modalTextColor: '',
+      toastBackground: '',
+      toastTextColor: '',
+      cardRadius: 12,
+      buttonRadius: 10,
+      updatedAt: null
+    },
     defaults: {
       timezone: 'UTC',
       dateFormat: 'YYYY-MM-DD',
@@ -230,7 +348,9 @@ class SystemSettingsStore {
       completed: Boolean(settings.setup?.completed),
       institute: settings.setup?.institute || {},
       branding: settings.setup?.branding || {},
-      defaults: settings.setup?.defaults || {}
+      defaults: settings.setup?.defaults || {},
+      publicLanding: settings.setup?.publicLanding || {},
+      dashboardTheme: settings.setup?.dashboardTheme || {}
     };
   }
 

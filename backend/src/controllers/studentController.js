@@ -622,7 +622,7 @@ const getUpcomingClasses = asyncHandler(async (req, res) => {
   // Get live classes for these batches
   const { liveClassRepository } = require('../repositories');
   
-  const liveClasses = await liveClassRepository.find(
+  let liveClasses = await liveClassRepository.find(
     { 
       batchId: { $in: batchIds },
       status: 'SCHEDULED',
@@ -636,6 +636,7 @@ const getUpcomingClasses = asyncHandler(async (req, res) => {
       sort: { scheduledStartTime: 1 }
     }
   );
+  liveClasses = await liveClassRepository.ensureRoomIds(liveClasses);
 
   res.json({
     success: true,
@@ -664,7 +665,7 @@ const getPastClasses = asyncHandler(async (req, res) => {
   // Get live classes for these batches
   const { liveClassRepository } = require('../repositories');
   
-  const liveClasses = await liveClassRepository.find(
+  let liveClasses = await liveClassRepository.find(
     { 
       batchId: { $in: batchIds },
       status: { $in: ['ENDED'] }
@@ -677,6 +678,7 @@ const getPastClasses = asyncHandler(async (req, res) => {
       sort: { scheduledStartTime: 1 }
     }
   );
+  liveClasses = await liveClassRepository.ensureRoomIds(liveClasses);
 
   res.json({
     success: true,
@@ -707,7 +709,7 @@ const getLiveClasses = asyncHandler(async (req, res) => {
   // Get live classes for these batches
   const { liveClassRepository } = require('../repositories');
   
-  const liveClasses = await liveClassRepository.find(
+  let liveClasses = await liveClassRepository.find(
     { 
       batchId: { $in: batchIds },
       status: { $in: ['SCHEDULED', 'LIVE'] },
@@ -722,6 +724,7 @@ const getLiveClasses = asyncHandler(async (req, res) => {
       sort: { scheduledStartTime: 1 }
     }
   );
+  liveClasses = await liveClassRepository.ensureRoomIds(liveClasses);
 
   res.json({
     success: true,
@@ -804,7 +807,7 @@ const getStudentDashboard = asyncHandler(async (req, res) => {
   const batchIds = enrollments.map(e => e.batchId._id);
   const { liveClassRepository } = require('../repositories');
   
-  const upcomingClasses = await liveClassRepository.find(
+  let upcomingClasses = await liveClassRepository.find(
     { 
       batchId: { $in: batchIds },
       status: 'SCHEDULED',
@@ -819,6 +822,7 @@ const getStudentDashboard = asyncHandler(async (req, res) => {
       limit: 5
     }
   );
+  upcomingClasses = await liveClassRepository.ensureRoomIds(upcomingClasses);
 
   // Calculate statistics
   const totalEnrollments = enrollments.length;
@@ -1194,7 +1198,7 @@ const getEnrolledCourse = asyncHandler(async (req, res) => {
 
   // Get upcoming classes for this course batch
   const { liveClassRepository } = require('../repositories');
-  const upcomingClasses = await liveClassRepository.find(
+  let upcomingClasses = await liveClassRepository.find(
     { 
       batchId: enrollment.batchId._id,
       status: 'SCHEDULED',
@@ -1208,6 +1212,7 @@ const getEnrolledCourse = asyncHandler(async (req, res) => {
       limit: 5
     }
   );
+  upcomingClasses = await liveClassRepository.ensureRoomIds(upcomingClasses);
 
   // Get course resources
   const resources = enrollment.courseId.resources || [];

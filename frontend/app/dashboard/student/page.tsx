@@ -325,9 +325,14 @@ export default function StudentDashboard() {
                     {/* Right Section - Button */}
                     <div className="flex sm:justify-end">
                       <Button
-                        onClick={() =>
-                          router.push(`/classroom/${liveClass.roomId}`)
-                        }
+                        onClick={() => {
+                          const targetRoomId = liveClass.roomId || liveClass.id
+                          if (targetRoomId) {
+                            router.push(`/classroom/${targetRoomId}`)
+                          } else {
+                            toast.error('Missing class room ID')
+                          }
+                        }}
                         className="w-full sm:w-auto justify-center gap-2"
                         style={{ 
                           backgroundColor: 'var(--color-error)',

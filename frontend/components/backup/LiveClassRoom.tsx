@@ -356,7 +356,7 @@ export default function ModernClassroom({ classData, user, enrollmentId, onLeave
       return
     }
 
-    const roomId = classData.roomId || classData._id || `fallback_${Date.now()}`
+    const roomId = classData.roomId || classData.id || classData._id || `fallback_${Date.now()}`
     console.log('🚪 Joining class with roomId:', roomId)
     // console.log('🚪 Joining class with roomId:', roomId)
     

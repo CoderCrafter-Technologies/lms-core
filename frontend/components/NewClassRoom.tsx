@@ -445,7 +445,10 @@ export default function NewLiveClassRoom({ classData, user, enrollmentId, onLeav
   useEffect(() => {
     if (!classData) return
     console.log(user, "User")
-    setRoomId(classData.roomId)
+    if (!classData.roomId) {
+      classData.roomId = `room_${classData.id || classData._id || Date.now()}`
+    }
+    setRoomId(classData.roomId || null)
   }, [classData])
 
   useEffect(() => {

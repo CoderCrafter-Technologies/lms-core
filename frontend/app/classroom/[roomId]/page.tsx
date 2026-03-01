@@ -97,8 +97,16 @@ export default function ClassroomPage() {
 
   const initializedRef = useRef(false)
   const dataFetchedRef = useRef(false)
+  const lastRoomIdRef = useRef<string | null>(null)
 
   useEffect(() => {
+    // Reset guards when roomId changes
+    if (lastRoomIdRef.current !== roomId) {
+      lastRoomIdRef.current = roomId
+      initializedRef.current = false
+      dataFetchedRef.current = false
+    }
+
     // Wait for auth to finish loading
     if (authLoading) return
 
@@ -139,6 +147,12 @@ export default function ClassroomPage() {
 
         if (!liveClass) {
           throw new Error("Invalid class data received from server")
+        }
+
+        // Redirect to canonical roomId if the URL used a classId fallback
+        if (liveClass?.roomId && liveClass.roomId !== roomId) {
+          router.replace(`/classroom/${liveClass.roomId}`)
+          return
         }
 
         // 2. Validate class timing

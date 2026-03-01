@@ -70,6 +70,38 @@ class LiveClassRepository extends BaseRepository {
       sort: { scheduledStartTime: 1 }
     });
   }
+
+  /**
+   * Ensure a stable roomId exists for a live class record.
+   * If missing, generate a deterministic roomId and persist it.
+   * @param {Object} liveClass
+   * @returns {Promise<Object|null>}
+   */
+  async ensureRoomId(liveClass) {
+    if (!liveClass) return liveClass;
+    if (liveClass.roomId) return liveClass;
+
+    const classId = liveClass.id || liveClass._id;
+    if (!classId) return liveClass;
+
+    const roomId = `room_${classId}`;
+    try {
+      await this.updateById(classId, { roomId });
+    } catch (error) {
+      // Best-effort: don't break reads if update fails
+    }
+
+    return { ...liveClass, roomId };
+  }
+
+  /**
+   * Ensure roomId for a list of live classes.
+   * @param {Array} liveClasses
+   * @returns {Promise<Array>}
+   */
+  async ensureRoomIds(liveClasses = []) {
+    return Promise.all(liveClasses.map((item) => this.ensureRoomId(item)));
+  }
 }
 
 module.exports = LiveClassRepository;

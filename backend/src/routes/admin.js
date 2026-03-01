@@ -159,6 +159,88 @@ router.get('/database-settings', async (req, res, next) => {
 });
 
 /**
+ * @route   GET /api/admin/landing-page
+ * @desc    Get public landing page appearance settings
+ * @access  Admin
+ */
+router.get('/landing-page', async (req, res, next) => {
+  try {
+    const setupSettings = await systemSettingsStore.getSetupSettings();
+    res.json({
+      success: true,
+      settings: setupSettings?.publicLanding || {}
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * @route   PUT /api/admin/landing-page
+ * @desc    Update public landing page appearance settings
+ * @access  Admin
+ */
+router.put('/landing-page', async (req, res) => {
+  try {
+    const payload = req.body || {};
+    const updated = await systemSettingsStore.updateSetupSettings({
+      publicLanding: payload
+    });
+    res.json({
+      success: true,
+      message: 'Landing page settings updated',
+      settings: updated.publicLanding || {}
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to update landing page settings'
+    });
+  }
+});
+
+/**
+ * @route   GET /api/admin/dashboard-theme
+ * @desc    Get dashboard theme overrides
+ * @access  Admin
+ */
+router.get('/dashboard-theme', async (req, res, next) => {
+  try {
+    const setupSettings = await systemSettingsStore.getSetupSettings();
+    res.json({
+      success: true,
+      settings: setupSettings?.dashboardTheme || {}
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * @route   PUT /api/admin/dashboard-theme
+ * @desc    Update dashboard theme overrides
+ * @access  Admin
+ */
+router.put('/dashboard-theme', async (req, res) => {
+  try {
+    const payload = req.body || {};
+    const updated = await systemSettingsStore.updateSetupSettings({
+      dashboardTheme: payload
+    });
+    res.json({
+      success: true,
+      message: 'Dashboard theme updated',
+      settings: updated.dashboardTheme || {}
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to update dashboard theme'
+    });
+  }
+});
+
+/**
  * @route   GET /api/admin/smtp-settings
  * @desc    Get SMTP configuration
  * @access  Admin

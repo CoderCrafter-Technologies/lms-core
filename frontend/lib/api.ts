@@ -951,6 +951,28 @@ class ApiService {
     return this.request('/admin/database-settings');
   }
 
+  async getLandingPageSettings() {
+    return this.request('/admin/landing-page');
+  }
+
+  async updateLandingPageSettings(payload: Record<string, any>) {
+    return this.request('/admin/landing-page', {
+      method: 'PUT',
+      body: JSON.stringify(payload || {}),
+    });
+  }
+
+  async getDashboardTheme() {
+    return this.request('/admin/dashboard-theme');
+  }
+
+  async updateDashboardTheme(payload: Record<string, any>) {
+    return this.request('/admin/dashboard-theme', {
+      method: 'PUT',
+      body: JSON.stringify(payload || {}),
+    });
+  }
+
   async updateDatabaseSettings(payload: {
     mode: 'mongodb' | 'postgres_uri' | 'postgres_same_server';
     mongodbUri?: string;

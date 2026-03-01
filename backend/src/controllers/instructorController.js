@@ -1,4 +1,4 @@
-const { userRepository, classRepository, liveClassRepository, batchRepository, courseRepository, roleRepository } = require('../repositories');
+const { userRepository, liveClassRepository, batchRepository, roleRepository } = require('../repositories');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { validationResult } = require('express-validator');
 const emailService = require('../services/emailService');
@@ -80,7 +80,16 @@ const getInstructor = asyncHandler(async (req, res) => {
   }
 
   // Get instructor's classes
-  const classes = await classRepository.findByInstructor(id);
+  const classes = await liveClassRepository.find(
+    { instructorId: id },
+    {
+      populate: [
+        { path: 'batchId', select: 'name' },
+        { path: 'courseId', select: 'title' }
+      ],
+      sort: { scheduledStartTime: 1 }
+    }
+  );
   // Get batches assigned to instructor
   const batches = await batchRepository.findByInstructor(id);
 
@@ -158,12 +167,16 @@ const createInstructor = asyncHandler(async (req, res) => {
     // Don't fail the request if email fails
   }
 
-  await emailService.sendAdminEventEmail(
-    'Instructor created',
-    `<p>A new instructor account was created.</p>
-     <p><strong>Name:</strong> ${instructor.firstName || ''} ${instructor.lastName || ''}<br/>
-     <strong>Email:</strong> ${instructor.email || '-'}</p>`
-  );
+  try {
+    await emailService.sendAdminEventEmail(
+      'Instructor created',
+      `<p>A new instructor account was created.</p>
+       <p><strong>Name:</strong> ${instructor.firstName || ''} ${instructor.lastName || ''}<br/>
+       <strong>Email:</strong> ${instructor.email || '-'}</p>`
+    );
+  } catch (error) {
+    console.error('Failed to send admin event email:', error);
+  }
 
   res.status(201).json({
     success: true,
@@ -227,7 +240,7 @@ const deleteInstructor = asyncHandler(async (req, res) => {
   const { id } = req.params;
   
   // Check if instructor has any upcoming classes
-  const upcomingClasses = await classRepository.count({
+  const upcomingClasses = await liveClassRepository.count({
     instructorId: id,
     scheduledStartTime: { $gt: new Date() }
   });
@@ -324,7 +337,7 @@ const removeFromBatch = asyncHandler(async (req, res) => {
   }
 
   // Check if instructor has upcoming classes in this batch
-  const upcomingClasses = await classRepository.count({
+  const upcomingClasses = await liveClassRepository.count({
     batchId,
     instructorId: batch.instructorId,
     scheduledStartTime: { $gt: new Date() }
@@ -367,7 +380,7 @@ const getInstructorClasses = asyncHandler(async (req, res) => {
     }
   }
 
-  const classes = await classRepository.find(filter, {
+  const classes = await liveClassRepository.find(filter, {
     populate: [
       { path: 'batchId', select: 'name' },
       { path: 'courseId', select: 'title' }
@@ -443,7 +456,21 @@ const getInstructorStats = asyncHandler(async (req, res) => {
   });
 
   // Get class statistics
-  const classStats = await classRepository.getInstructorStats();
+  const now = new Date();
+  const totalClasses = await liveClassRepository.count({});
+  const completedClasses = await liveClassRepository.count({ status: 'ENDED' });
+  const upcomingClasses = await liveClassRepository.count({
+    status: 'SCHEDULED',
+    scheduledStartTime: { $gt: now }
+  });
+  const liveClasses = await liveClassRepository.count({ status: 'LIVE' });
+  const classStats = {
+    totalClasses,
+    completedClasses,
+    upcomingClasses,
+    liveClasses,
+    completionRate: totalClasses > 0 ? Math.round((completedClasses / totalClasses) * 100) : 0
+  };
   
   res.json({
     success: true,

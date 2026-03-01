@@ -448,7 +448,8 @@ const getBatchClasses = asyncHandler(async (req, res) => {
     });
   }
 
-  const classes = await liveClassRepository.findByBatch(id);
+  let classes = await liveClassRepository.findByBatch(id);
+  classes = await liveClassRepository.ensureRoomIds(classes);
   
   res.json({
     success: true,

@@ -49,12 +49,52 @@ export function SetupProvider({ children }: { children: React.ReactNode }) {
         setSettings(settingsRes?.data || null)
 
         const branding = settingsRes?.data?.branding || {}
+        const dashboardTheme = settingsRes?.data?.dashboardTheme || {}
         if (typeof document !== 'undefined') {
           if (branding?.primaryColor) {
             document.documentElement.style.setProperty('--color-primary', branding.primaryColor)
           }
           if (branding?.accentColor) {
             document.documentElement.style.setProperty('--color-accent', branding.accentColor)
+          }
+          if (dashboardTheme?.backgroundColor) {
+            document.documentElement.style.setProperty('--color-background', dashboardTheme.backgroundColor)
+          }
+          if (dashboardTheme?.surfaceColor) {
+            document.documentElement.style.setProperty('--color-surface', dashboardTheme.surfaceColor)
+          }
+          if (dashboardTheme?.cardBackground) {
+            document.documentElement.style.setProperty('--color-card', dashboardTheme.cardBackground)
+          }
+          if (dashboardTheme?.cardBorder) {
+            document.documentElement.style.setProperty('--color-card-border', dashboardTheme.cardBorder)
+          }
+          if (dashboardTheme?.sidebarColor) {
+            document.documentElement.style.setProperty('--color-sidebar', dashboardTheme.sidebarColor)
+          }
+          if (dashboardTheme?.sidebarTextColor) {
+            document.documentElement.style.setProperty('--color-sidebar-text', dashboardTheme.sidebarTextColor)
+          }
+          if (dashboardTheme?.textColor) {
+            document.documentElement.style.setProperty('--color-text', dashboardTheme.textColor)
+          }
+          if (dashboardTheme?.primaryColor) {
+            document.documentElement.style.setProperty('--color-primary', dashboardTheme.primaryColor)
+          }
+          if (dashboardTheme?.accentColor) {
+            document.documentElement.style.setProperty('--color-accent', dashboardTheme.accentColor)
+          }
+          if (dashboardTheme?.modalBackground) {
+            document.documentElement.style.setProperty('--color-modal', dashboardTheme.modalBackground)
+          }
+          if (dashboardTheme?.modalTextColor) {
+            document.documentElement.style.setProperty('--color-modal-text', dashboardTheme.modalTextColor)
+          }
+          if (dashboardTheme?.toastBackground) {
+            document.documentElement.style.setProperty('--color-toast', dashboardTheme.toastBackground)
+          }
+          if (dashboardTheme?.toastTextColor) {
+            document.documentElement.style.setProperty('--color-toast-text', dashboardTheme.toastTextColor)
           }
         }
 

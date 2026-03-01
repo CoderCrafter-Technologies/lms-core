@@ -11,7 +11,6 @@ const { User, Role, RolePermission, Permission, Course, Batch, LiveClass, Enroll
 const mongoose = require('mongoose');
 const fs = require('fs/promises');
 const path = require('path');
-const User = require('../models/User');
 const emailService = require('../services/emailService');
 
 const router = express.Router();

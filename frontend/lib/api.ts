@@ -44,7 +44,24 @@ const resolveApiBaseUrl = () => {
   return `${fallbackProtocol}//${hostname}:5000/api`;
 };
 
-const getApiBaseUrl = () => resolveApiBaseUrl();
+let apiBaseOverride: string | null = null;
+
+const getApiBaseUrl = () => apiBaseOverride || resolveApiBaseUrl();
+
+const buildFallbackApiBase = (baseUrl: string) => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const parsed = new URL(baseUrl);
+    if (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1' || parsed.hostname === '0.0.0.0') {
+      return null;
+    }
+    if (parsed.port !== '5000') return null;
+    parsed.port = '5001';
+    return parsed.toString().replace(/\/$/, '');
+  } catch {
+    return null;
+  }
+};
 const detectClientTimezone = () => {
   if (typeof window === 'undefined') return 'UTC';
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -160,7 +177,8 @@ class ApiService {
   }
 
   private async rawRequest(endpoint: string, options: RequestInit = {}, allowRetry = true) {
-    const url = `${getApiBaseUrl()}${endpoint}`;
+    const baseUrl = getApiBaseUrl();
+    const url = `${baseUrl}${endpoint}`;
     const requiresAuth = !this.isPublicEndpoint(endpoint);
     let token = this.getToken();
 
@@ -241,7 +259,14 @@ class ApiService {
       }
 
       return response;
-    } catch (error) {
+    } catch (error: any) {
+      if (allowRetry && error instanceof TypeError) {
+        const fallback = buildFallbackApiBase(baseUrl);
+        if (fallback) {
+          apiBaseOverride = fallback.replace(/\/api\/?$/, '') + '/api';
+          return this.rawRequest(endpoint, options, false);
+        }
+      }
       console.error('API Request failed:', error);
       throw error;
     }

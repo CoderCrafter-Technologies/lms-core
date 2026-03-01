@@ -3,6 +3,8 @@ const path = require('path');
 
 const SETTINGS_DIR = path.join(__dirname, '../../data');
 const SETTINGS_FILE = path.join(SETTINGS_DIR, 'system-settings.json');
+const buildTmpPath = () => `${SETTINGS_FILE}.${process.pid}.${Date.now()}.tmp`;
+const SETTINGS_FILE_BAK = `${SETTINGS_FILE}.bak`;
 
 const DEFAULT_SETTINGS = {
   database: {
@@ -159,6 +161,18 @@ class SystemSettingsStore {
         await this.write(defaults);
         return defaults;
       }
+      if (error instanceof SyntaxError) {
+        try {
+          const rawBak = await fs.readFile(SETTINGS_FILE_BAK, 'utf8');
+          const parsedBak = JSON.parse(rawBak);
+          await this.write(parsedBak);
+          return deepMerge(cloneDefaults(), parsedBak);
+        } catch {
+          const defaults = cloneDefaults();
+          await this.write(defaults);
+          return defaults;
+        }
+      }
       throw error;
     }
   }
@@ -166,7 +180,23 @@ class SystemSettingsStore {
   async write(nextSettings) {
     await this.ensureStore();
     const merged = deepMerge(cloneDefaults(), nextSettings || {});
-    await fs.writeFile(SETTINGS_FILE, JSON.stringify(merged, null, 2), 'utf8');
+    const payload = JSON.stringify(merged, null, 2);
+    const tmpPath = buildTmpPath();
+    await fs.writeFile(tmpPath, payload, 'utf8');
+    try {
+      await fs.rename(SETTINGS_FILE, SETTINGS_FILE_BAK);
+    } catch {
+      // ignore if main doesn't exist
+    }
+    try {
+      await fs.rename(tmpPath, SETTINGS_FILE);
+    } catch (error) {
+      if (error?.code === 'ENOENT') {
+        await fs.writeFile(SETTINGS_FILE, payload, 'utf8');
+      } else {
+        throw error;
+      }
+    }
     return merged;
   }
 

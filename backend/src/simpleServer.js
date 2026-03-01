@@ -4,11 +4,12 @@ const cookieParser = require('cookie-parser');
 const database = require('./config/database');
 const authRoutes = require('./routes/auth');
 const config = require('./config');
+const dynamicCors = require('./utils/dynamicCors');
 
 const app = express();
 
 // Middleware
-app.use(cors(config.cors));
+app.use(cors(dynamicCors.corsOptions));
 app.use(express.json());
 app.use(cookieParser());
 

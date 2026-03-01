@@ -22,7 +22,8 @@ export default function TestPage() {
   const testHealth = async () => {
     setLoading(true)
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_SOCKET_URL}/health`)
+      const socketBase = typeof window !== 'undefined' ? window.location.origin : process.env.NEXT_PUBLIC_SOCKET_URL
+      const response = await fetch(`${socketBase}/health`)
       const data = await response.json()
       setResult(`Backend Health: ${data.status} - Database: ${data.database}`)
     } catch (error: any) {

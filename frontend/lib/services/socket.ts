@@ -1,17 +1,37 @@
 // src/lib/socket.js
 import { io } from "socket.io-client";
 
-let socket = null;
+let socket: ReturnType<typeof io> | null = null;
 let consumers = 0;
 
-export function initSocket(serverUrl = "http://localhost:5000") {
+const resolveSocketUrl = (serverUrl?: string) => {
+  if (typeof window === "undefined") {
+    return serverUrl || "http://localhost:5000";
+  }
+
+  const { origin, port } = window.location;
+  const isDefaultPort = !port || port === "80" || port === "443";
+
+  if (isDefaultPort) {
+    return origin;
+  }
+
+  return serverUrl || "http://localhost:5000";
+};
+
+export function initSocket(serverUrl?: string) {
+  const resolvedUrl = resolveSocketUrl(serverUrl);
   if (!socket) {
-    socket = io(serverUrl, {
+    socket = io(resolvedUrl, {
       transports: ["websocket"],
     });
   }
   consumers += 1;
   return socket;
+}
+
+export function getSocketUrl(serverUrl?: string) {
+  return resolveSocketUrl(serverUrl);
 }
 
 export function getSocket() {

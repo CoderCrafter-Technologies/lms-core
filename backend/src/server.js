@@ -37,6 +37,7 @@ const notificationsRoutes = require('./routes/notifications');
 const monitoringRoutes = require('./routes/monitoring');
 const managerRoutes = require('./routes/manager');
 const setupRoutes = require('./routes/setup');
+const dynamicCors = require('./utils/dynamicCors');
 
 // Import Socket.io handlers
 const EnhancedSocketHandler = require('./services/newSocketHandler');
@@ -52,10 +53,7 @@ class Server {
     this.app.set('trust proxy', 1);
     this.server = createServer(this.app);
     this.io = new SocketIOServer(this.server, {
-      cors: {
-        origin: config.cors.origin,
-        credentials: true
-      }
+      cors: dynamicCors.socketCorsOptions
     });
     
     this.setupMiddleware();
@@ -83,7 +81,7 @@ class Server {
     }));
 
     // CORS
-    this.app.use(cors(config.cors));
+    this.app.use(cors(dynamicCors.corsOptions));
 
     // Rate limiting
     const limiter = rateLimit({
@@ -284,6 +282,7 @@ class Server {
     try {
       // Connect to database
       await database.connect();
+      await dynamicCors.refreshAllowedOrigins();
       liveClassCron.start();
       notificationDigestCron.start();
       await telemetryHeartbeatCron.start();

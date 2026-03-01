@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
 import { io, Socket } from 'socket.io-client'
+import { getSocketUrl } from '@/lib/services/socket'
 
 export default function DebugSocketPage() {
   const [logs, setLogs] = useState<string[]>([])
@@ -21,7 +22,7 @@ export default function DebugSocketPage() {
     addLog(`🔑 Auth token available: ${!!token}`)
 
     addLog('🔌 Connecting to Socket.IO server...')
-    const socketConnection = io(process.env.NEXT_PUBLIC_SOCKET_URL, {
+    const socketConnection = io(getSocketUrl(process.env.NEXT_PUBLIC_SOCKET_URL), {
       transports: ['websocket', 'polling'],
       forceNew: true,
       reconnection: true,

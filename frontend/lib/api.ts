@@ -12,7 +12,24 @@ import type {
   AssessmentResultsData,
   AssessmentSubmission,
 } from '../types/assessment';
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api';
+const resolveApiBaseUrl = () => {
+  const envBase = process.env.NEXT_PUBLIC_API_URL || '';
+
+  if (typeof window === 'undefined') {
+    return envBase || 'http://localhost:5001/api';
+  }
+
+  const { origin, port } = window.location;
+  const isDefaultPort = !port || port === '80' || port === '443';
+
+  if (isDefaultPort) {
+    return `${origin}/api`;
+  }
+
+  return envBase || 'http://localhost:5001/api';
+};
+
+const API_BASE_URL = resolveApiBaseUrl();
 const detectClientTimezone = () => {
   if (typeof window === 'undefined') return 'UTC';
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -72,6 +89,9 @@ class ApiService {
       endpoint.startsWith('/setup/status') ||
       endpoint.startsWith('/setup/prefill') ||
       endpoint.startsWith('/setup/public-settings') ||
+      endpoint.startsWith('/setup/custom-domains/prepare') ||
+      endpoint.startsWith('/setup/custom-domains/verify') ||
+      endpoint.startsWith('/setup/custom-domains/apply-caddy') ||
       endpoint.startsWith('/setup/brand-assets') ||
       endpoint.startsWith('/setup/complete') ||
       endpoint.startsWith('/setup/smtp/test') ||
@@ -256,8 +276,57 @@ class ApiService {
     return this.request('/setup/prefill');
   }
 
+
   async getPublicSetupSettings() {
     return this.request('/setup/public-settings');
+  }
+
+  async prepareCustomDomain(payload: { domain: string; serverIp?: string }) {
+    return this.request('/setup/custom-domains/prepare', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async getNginxConfig(payload: { domain: string; frontendPort?: number; backendPort?: number }) {
+    return this.request('/setup/custom-domains/nginx-config', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async enableCustomDomainSsl(payload: { domain: string; email: string }) {
+    return this.request('/setup/custom-domains/enable-ssl', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async applyCaddyConfig(payload: { domain: string; email?: string }) {
+    return this.request('/setup/custom-domains/apply-caddy', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async saveCustomDomain(payload: { domain: string }) {
+    return this.request('/setup/custom-domains/save', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteCustomDomain(domain: string) {
+    return this.request(`/setup/custom-domains/${encodeURIComponent(domain)}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async verifyCustomDomain(payload: { domain: string; serverIp?: string }) {
+    return this.request('/setup/custom-domains/verify', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   }
 
   async completeSetup(payload: {
@@ -280,6 +349,14 @@ class ApiService {
       timeFormat?: string;
       locale?: string;
     };
+    customDomains?: Array<{
+      domain: string;
+      expectedIp?: string;
+      status?: string;
+      verificationToken?: string;
+      verifiedAt?: string | null;
+      lastCheckedAt?: string | null;
+    }>;
     branding: {
       appName: string;
       logoUrl?: string;
@@ -1042,6 +1119,12 @@ class ApiService {
     return this.request(`/students/${studentId}/status`, {
       method: 'PATCH',
       body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteStudent(studentId: string) {
+    return this.request(`/students/${studentId}`, {
+      method: 'DELETE',
     });
   }
 

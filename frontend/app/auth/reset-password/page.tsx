@@ -50,9 +50,10 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="max-w-md mx-auto mt-12 p-6 bg-white rounded-lg border border-gray-200">
-      <h1 className="text-2xl font-bold mb-2">Reset Password</h1>
-      <p className="text-sm text-gray-600 mb-6">
+    <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: 'var(--color-background)' }}>
+      <div className="w-full max-w-md p-6 rounded-lg border" style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
+      <h1 className="text-2xl font-bold mb-2" style={{ color: 'var(--color-text)' }}>Reset Password</h1>
+      <p className="text-sm mb-6" style={{ color: 'var(--color-text-secondary)' }}>
         {tokenFromQuery
           ? 'Reset link verified. Set your new password.'
           : 'Use your email + OTP to set a new password.'}
@@ -63,6 +64,7 @@ export default function ResetPasswordPage() {
             <input
               type="email"
               className="w-full px-3 py-2 border rounded-md"
+              style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
               placeholder="Email address"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -71,6 +73,7 @@ export default function ResetPasswordPage() {
             <input
               type="text"
               className="w-full px-3 py-2 border rounded-md"
+              style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
               placeholder="6-digit OTP"
               value={otp}
               onChange={(e) => setOtp(e.target.value)}
@@ -82,6 +85,7 @@ export default function ResetPasswordPage() {
         <input
           type="password"
           className="w-full px-3 py-2 border rounded-md"
+          style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
           placeholder="New password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -90,6 +94,7 @@ export default function ResetPasswordPage() {
         <input
           type="password"
           className="w-full px-3 py-2 border rounded-md"
+          style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
           placeholder="Confirm new password"
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
@@ -98,17 +103,18 @@ export default function ResetPasswordPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full py-2 rounded-md bg-blue-600 text-white disabled:opacity-60"
+          className="w-full py-2 rounded-md text-white disabled:opacity-60"
+          style={{ backgroundColor: 'var(--color-primary)' }}
         >
           {loading ? 'Updating...' : 'Reset Password'}
         </button>
       </form>
       <div className="mt-4 text-sm text-center">
-        <Link href="/auth/login" className="text-blue-600 hover:underline">
+        <Link href="/auth/login" className="hover:underline" style={{ color: 'var(--color-primary)' }}>
           Back to login
         </Link>
       </div>
     </div>
+    </div>
   )
 }
-

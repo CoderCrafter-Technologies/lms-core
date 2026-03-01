@@ -2,12 +2,13 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const config = require('./config');
+const dynamicCors = require('./utils/dynamicCors');
 
 const app = express();
 
 // Middleware
 app.use(helmet());
-app.use(cors(config.cors));
+app.use(cors(dynamicCors.corsOptions));
 app.use(express.json());
 
 // Basic routes without database

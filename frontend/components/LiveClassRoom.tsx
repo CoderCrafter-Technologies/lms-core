@@ -5,6 +5,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { api } from '@/lib/api'
 import { toast } from 'sonner'
 import { io, Socket } from 'socket.io-client'
+import { getSocketUrl } from '@/lib/services/socket'
 
 // UI Components
 import { Button } from '@/components/ui/button'
@@ -343,7 +344,7 @@ export default function LiveClassRoom({ classData, user, enrollmentId, onLeave }
     }
 
     debugLog('Initializing socket connection', {})
-    const socketConnection = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'https://api.lms.codercrafter.in', {
+    const socketConnection = io(getSocketUrl(process.env.NEXT_PUBLIC_SOCKET_URL), {
       transports: ['websocket', 'polling'],
       forceNew: true,
       reconnection: true,

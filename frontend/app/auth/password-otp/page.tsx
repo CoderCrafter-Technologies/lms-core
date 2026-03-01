@@ -52,23 +52,29 @@ export default function PasswordOtpPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <form onSubmit={handleSubmit} className="w-full max-w-md rounded-xl border border-gray-200 bg-white p-6 space-y-4">
-        <h1 className="text-xl font-semibold">Set New Password with OTP</h1>
-        <p className="text-sm text-gray-600">
+    <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: 'var(--color-background)' }}>
+      <form
+        onSubmit={handleSubmit}
+        className="w-full max-w-md rounded-xl border p-6 space-y-4"
+        style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
+      >
+        <h1 className="text-xl font-semibold" style={{ color: 'var(--color-text)' }}>Set New Password with OTP</h1>
+        <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
           Use the OTP sent by your admin email request.
         </p>
         <input
           type="email"
           placeholder="Email"
-          className="w-full rounded-md border border-gray-300 px-3 py-2"
+          className="w-full rounded-md border px-3 py-2"
+          style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
         <input
           type="text"
           placeholder="6-digit OTP"
-          className="w-full rounded-md border border-gray-300 px-3 py-2"
+          className="w-full rounded-md border px-3 py-2"
+          style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
           value={otp}
           maxLength={6}
           onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
@@ -76,19 +82,23 @@ export default function PasswordOtpPage() {
         <input
           type="password"
           placeholder="New password (min 8)"
-          className="w-full rounded-md border border-gray-300 px-3 py-2"
+          className="w-full rounded-md border px-3 py-2"
+          style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
         />
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-md bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
+          className="w-full rounded-md px-4 py-2 text-white disabled:opacity-50"
+          style={{ backgroundColor: 'var(--color-primary)' }}
         >
           {loading ? 'Updating...' : 'Update Password'}
         </button>
         <div className="text-center text-sm">
-          <Link href="/auth/login" className="text-blue-600 hover:underline">Back to login (to request a new OTP)</Link>
+          <Link href="/auth/login" className="hover:underline" style={{ color: 'var(--color-primary)' }}>
+            Back to login (to request a new OTP)
+          </Link>
         </div>
       </form>
     </div>

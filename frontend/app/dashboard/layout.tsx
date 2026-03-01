@@ -305,7 +305,6 @@ export default function DashboardLayout({
             <Menu className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-3">
-            <NotificationCenterInner mode="inline" />
             <div 
               className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium"
               style={{ backgroundColor: 'var(--color-primary)' }}
@@ -317,13 +316,11 @@ export default function DashboardLayout({
 
         {/* Page content */}
         <main className="flex-1 overflow-y-auto scrollbar-hidden" style={{ backgroundColor: 'var(--color-background)' }}>
-          <div className="hidden lg:flex justify-end px-6 pt-4">
-            <NotificationCenterInner mode="inline" />
-          </div>
           {children}
         </main>
       </div>
       
+      <NotificationCenterInner mode="fixed" />
       {/* Urgent Notifications */}
       <UrgentNotification />
     </div>

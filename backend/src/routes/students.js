@@ -324,6 +324,17 @@ router.put('/:id',
 );
 
 /**
+ * @route   PATCH /api/students/:id/status
+ * @desc    Update student active status
+ * @access  Admin
+ */
+router.patch('/:id/status',
+  mongoIdValidation,
+  roleMiddleware(['admin']),
+  studentController.updateStudentStatus
+);
+
+/**
  * @route   DELETE /api/students/:id
  * @desc    Delete/deactivate student
  * @access  Admin

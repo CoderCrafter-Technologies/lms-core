@@ -534,7 +534,7 @@ export default function AdminSupportPage() {
             <h4 className="font-medium mb-2">Latest Reply:</h4>
             <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded">
               <p className="text-sm">{ticket.replies[ticket.replies.length - 1].message}</p>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-[var(--color-text-secondary)] mt-1">
                 By {ticket.replies[ticket.replies.length - 1].from.firstName}{' '}
                 {ticket.replies[ticket.replies.length - 1].from.lastName} -{' '}
                 {new Date(ticket.replies[ticket.replies.length - 1].createdAt).toLocaleString()}
@@ -612,7 +612,7 @@ export default function AdminSupportPage() {
       </div>
 
       <Dialog open={threadOpen} onOpenChange={setThreadOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-3xl bg-[var(--color-surface)] text-[var(--color-text)] border-[var(--color-border)]">
           <DialogHeader>
             <DialogTitle>
               {selectedTicket ? `Ticket Thread: ${selectedTicket.title}` : 'Ticket Thread'}
@@ -620,15 +620,15 @@ export default function AdminSupportPage() {
           </DialogHeader>
 
           {threadLoading ? (
-            <p className="text-sm text-gray-500">Loading thread...</p>
+            <p className="text-sm text-[var(--color-text-secondary)]">Loading thread...</p>
           ) : !selectedTicket ? (
-            <p className="text-sm text-gray-500">No ticket selected.</p>
+            <p className="text-sm text-[var(--color-text-secondary)]">No ticket selected.</p>
           ) : (
             <div className="space-y-4">
-              <div className="max-h-80 overflow-y-auto border rounded-md p-3 space-y-3">
+              <div className="max-h-80 overflow-y-auto border border-[var(--color-border)] rounded-md p-3 space-y-3 bg-[var(--color-background)]">
                 {selectedTicket.replies && selectedTicket.replies.length > 0 ? (
                   selectedTicket.replies.map((reply) => (
-                    <div key={reply._id} className="rounded-md border p-3 bg-gray-50">
+                    <div key={reply._id} className="rounded-md border border-[var(--color-border)] p-3 bg-[var(--color-surface)]">
                       <p className="text-sm whitespace-pre-wrap">{reply.message}</p>
                       {reply.attachments && reply.attachments.length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-2">
@@ -639,7 +639,7 @@ export default function AdminSupportPage() {
                               <button
                                 key={`${reply._id}-${idx}`}
                                 type="button"
-                                className="w-14 h-14 rounded border overflow-hidden flex items-center justify-center bg-black/10"
+                                className="w-14 h-14 rounded border border-[var(--color-border)] overflow-hidden flex items-center justify-center bg-black/10"
                                 onClick={() => setPreviewModal({ open: true, url, name: attachment.filename, isImage })}
                                 title={attachment.filename}
                               >
@@ -653,7 +653,7 @@ export default function AdminSupportPage() {
                           })}
                         </div>
                       )}
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-xs text-[var(--color-text-secondary)] mt-1">
                         {reply.from.firstName} {reply.from.lastName}
                         {reply.from.roleId?.name ? ` (${reply.from.roleId.name})` : ''} ·{' '}
                         {new Date(reply.createdAt).toLocaleString()}
@@ -661,7 +661,7 @@ export default function AdminSupportPage() {
                     </div>
                   ))
                 ) : (
-                  <p className="text-sm text-gray-500">No messages yet.</p>
+                  <p className="text-sm text-[var(--color-text-secondary)]">No messages yet.</p>
                 )}
               </div>
 
@@ -675,7 +675,7 @@ export default function AdminSupportPage() {
                   rows={4}
                 />
                 <label
-                  className="h-10 w-10 rounded-md border inline-flex items-center justify-center cursor-pointer"
+                  className="h-10 w-10 rounded-md border border-[var(--color-border)] inline-flex items-center justify-center cursor-pointer text-[var(--color-text)]"
                   title="Add attachment"
                 >
                   <PaperClipIcon className="h-4 w-4" />
@@ -694,7 +694,7 @@ export default function AdminSupportPage() {
                       <button
                         key={`admin-pending-${idx}`}
                         type="button"
-                        className="relative w-14 h-14 rounded border overflow-hidden flex items-center justify-center bg-black/10"
+                        className="relative w-14 h-14 rounded border border-[var(--color-border)] overflow-hidden flex items-center justify-center bg-black/10"
                         onClick={() =>
                           setPreviewModal({
                             open: true,
@@ -745,7 +745,7 @@ export default function AdminSupportPage() {
         open={previewModal.open}
         onOpenChange={(open) => setPreviewModal((prev) => ({ ...prev, open }))}
       >
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-3xl bg-[var(--color-surface)] text-[var(--color-text)] border-[var(--color-border)]">
           <DialogHeader>
             <DialogTitle>{previewModal.name || 'Attachment Preview'}</DialogTitle>
           </DialogHeader>
@@ -754,10 +754,10 @@ export default function AdminSupportPage() {
               <img
                 src={previewModal.url}
                 alt={previewModal.name}
-                className="max-h-[70vh] w-full object-contain rounded border"
+                className="max-h-[70vh] w-full object-contain rounded border border-[var(--color-border)]"
               />
             ) : (
-              <div className="p-6 border rounded-md text-sm">
+              <div className="p-6 border border-[var(--color-border)] rounded-md text-sm text-[var(--color-text-secondary)]">
                 Preview is available for images only. Click Open File to view this attachment.
               </div>
             )}

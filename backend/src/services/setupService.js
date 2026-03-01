@@ -150,6 +150,7 @@ class SetupService {
       throw new Error('Setup is already completed');
     }
 
+    const existingSetup = await systemSettingsStore.getSetupSettings();
     const timezone = payload?.defaults?.timezone || 'UTC';
     if (!isValidTimezone(timezone)) {
       throw new Error('Invalid timezone');
@@ -197,7 +198,9 @@ class SetupService {
         timeFormat: String(payload?.defaults?.timeFormat || '24h').trim(),
         locale: String(payload?.defaults?.locale || 'en-US').trim()
       },
-      customDomains: []
+      customDomains: Array.isArray(payload?.customDomains) && payload.customDomains.length
+        ? payload.customDomains
+        : (existingSetup?.customDomains || [])
     };
 
     await telemetryLicensingService.updateStatusMetadata({

@@ -229,6 +229,35 @@ const deleteStudent = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Toggle student active status
+ */
+const updateStudentStatus = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { isActive } = req.body || {};
+
+  if (typeof isActive !== 'boolean') {
+    return res.status(400).json({
+      success: false,
+      message: 'isActive must be a boolean'
+    });
+  }
+
+  const student = await userRepository.updateById(id, { isActive });
+  if (!student) {
+    return res.status(404).json({
+      success: false,
+      message: 'Student not found'
+    });
+  }
+
+  res.json({
+    success: true,
+    message: `Student ${isActive ? 'activated' : 'deactivated'} successfully`,
+    data: student
+  });
+});
+
+/**
  * Enroll student in a batch
  */
 const enrollStudent = asyncHandler(async (req, res) => {
@@ -1219,6 +1248,7 @@ module.exports = {
   createStudent,
   updateStudent,
   deleteStudent,
+  updateStudentStatus,
   enrollStudent,
   unenrollStudent,
   getStudentEnrollments,

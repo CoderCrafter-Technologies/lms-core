@@ -1,6 +1,18 @@
 version: "3.9"
 
 services:
+  caddy:
+    image: caddy:2
+    container_name: coder_caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+      - caddyfile:/etc/caddy
+
   mongodb:
     image: mongo:7
     container_name: coder_mongodb
@@ -61,11 +73,16 @@ services:
       ENABLE_CONTROL_PLANE_SYNC: "false"
       CONTROL_PLANE_URL: ""
       CONTROL_PLANE_SIGNING_SECRET: ""
+      CADDY_ADMIN_URL: http://caddy:2019
+      CADDYFILE_PATH: /app/caddy/Caddyfile
+      CADDY_FRONTEND_UPSTREAM: frontend:3000
+      CADDY_BACKEND_UPSTREAM: backend:5000
     ports:
       - "5000:5000"
     volumes:
       - backend_uploads:/app/uploads
       - backend_data:/app/data
+      - caddyfile:/app/caddy
     healthcheck:
       test: ["CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:5000/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1));\""]
       interval: 15s
@@ -99,3 +116,6 @@ volumes:
   postgres_data:
   backend_uploads:
   backend_data:
+  caddy_data:
+  caddy_config:
+  caddyfile:

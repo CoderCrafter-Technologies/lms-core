@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { format } from 'date-fns'
 import { useRouter } from 'next/navigation'
 import { StudentModal } from '@/components/modals/studentModalProps'
+import { toast } from 'sonner'
 import { Plus, Users, CheckCircle, Clock, BookOpen, Search, Filter } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -146,6 +147,21 @@ export default function StudentsPage() {
     fetchStudents()
     fetchCourses()
   }, [])
+
+  const handleDeleteStudent = async (student: Student) => {
+    const name = `${student.firstName} ${student.lastName}`.trim()
+    const confirmDelete = window.confirm(`Deactivate ${name || student.email}? This will disable access for the student.`)
+    if (!confirmDelete) return
+
+    try {
+      await api.deleteStudent(student.id)
+      toast.success('Student deactivated successfully')
+      setStudents((prev) => prev.filter((s) => s.id !== student.id))
+      setFilteredStudents((prev) => prev.filter((s) => s.id !== student.id))
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to deactivate student')
+    }
+  }
 
   // Fetch enrollments when students are loaded
   useEffect(() => {
@@ -476,22 +492,37 @@ export default function StudentsPage() {
                         View
                       </button>
                       {user?.role.name === 'ADMIN' && (
-                        <button 
-                          onClick={() => {
-                            setShowStudentModal(true)
-                            setCurrentStudent(student)
-                          }} 
-                          className="transition-colors hover:opacity-80"
-                          style={{ color: 'var(--color-warning)' }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.textDecoration = 'underline'
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.textDecoration = 'none'
-                          }}
-                        >
-                          Edit
-                        </button>
+                        <>
+                          <button 
+                            onClick={() => {
+                              setShowStudentModal(true)
+                              setCurrentStudent(student)
+                            }} 
+                            className="transition-colors hover:opacity-80 mr-4"
+                            style={{ color: 'var(--color-warning)' }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.textDecoration = 'underline'
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.textDecoration = 'none'
+                            }}
+                          >
+                            Edit
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteStudent(student)}
+                            className="transition-colors hover:opacity-80"
+                            style={{ color: 'var(--color-error)' }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.textDecoration = 'underline'
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.textDecoration = 'none'
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </>
                       )}
                     </td>
                   </tr>

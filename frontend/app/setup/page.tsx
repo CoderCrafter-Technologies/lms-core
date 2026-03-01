@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
@@ -29,6 +29,15 @@ type SetupForm = {
     timeFormat: string
     locale: string
   }
+  customDomains: Array<{
+    domain: string
+    expectedIp?: string
+    status?: string
+    verificationToken?: string
+    verifiedAt?: string | null
+    lastCheckedAt?: string | null
+    savedAt?: string | null
+  }>
   admin: {
     email: string
     firstName: string
@@ -85,6 +94,7 @@ const initialForm: SetupForm = {
     timeFormat: '24h',
     locale: 'en-US'
   },
+  customDomains: [],
   admin: {
     email: '',
     firstName: '',
@@ -122,6 +132,7 @@ const initialForm: SetupForm = {
 const sections = [
   { id: 'institute', label: 'Institute', icon: Building2 },
   { id: 'branding', label: 'Branding', icon: Palette },
+  { id: 'domain', label: 'Domain', icon: Globe },
   { id: 'defaults', label: 'Defaults', icon: Globe },
   { id: 'database', label: 'Database', icon: Database },
   { id: 'smtp', label: 'SMTP', icon: Mail },
@@ -130,8 +141,14 @@ const sections = [
 
 type SectionId = (typeof sections)[number]['id']
 
-const cardClass = 'bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden'
+const cardClass = 'bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700'
 const inputClass = 'w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all'
+
+type DnsRecord = {
+  type: 'A' | 'TXT'
+  host: string
+  value: string
+}
 
 export default function SetupPage() {
   const router = useRouter()
@@ -143,6 +160,23 @@ export default function SetupPage() {
   const [faviconFile, setFaviconFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState('')
   const [faviconPreview, setFaviconPreview] = useState('')
+  const [customDomain, setCustomDomain] = useState({
+    domain: '',
+    serverIp: '',
+    status: '',
+    records: [] as DnsRecord[],
+    lastCheckedAt: '',
+    frontendPort: 3001,
+    backendPort: 5001,
+    certbotEmail: '',
+    nginxConfig: '',
+    sslMessage: '',
+    sslEnabled: false,
+    caddyMessage: '',
+    savedAt: ''
+  })
+  const lastPreparedDomainRef = useRef<string>('')
+  const [domainBusy, setDomainBusy] = useState(false)
   const apiOrigin = useMemo(() => (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/api\/?$/, ''), [])
 
   const timezoneOptions = useMemo(() => {
@@ -183,6 +217,7 @@ export default function SetupPage() {
           institute: { ...prev.institute, ...(setup?.institute || {}) },
           branding: { ...prev.branding, ...(setup?.branding || {}) },
           defaults: { ...prev.defaults, ...(setup?.defaults || {}), timezone: setup?.defaults?.timezone || detectedTimezone },
+          customDomains: Array.isArray(setup?.customDomains) ? setup.customDomains : prev.customDomains,
           database: {
             ...prev.database,
             ...database,
@@ -211,6 +246,25 @@ export default function SetupPage() {
           const mergedFavicon = toAssetUrl(merged.branding.faviconUrl || merged.branding.logoUrl || '')
           setLogoPreview(mergedLogo)
           setFaviconPreview(mergedFavicon)
+          const domainEntry = Array.isArray(merged.customDomains) ? merged.customDomains[0] : null
+          if (domainEntry?.domain) {
+            const records: DnsRecord[] = []
+            if (domainEntry.expectedIp) {
+              records.push({ type: 'A', host: '@', value: domainEntry.expectedIp })
+            }
+            if (domainEntry.verificationToken) {
+              records.push({ type: 'TXT', host: '_lms-verify', value: domainEntry.verificationToken })
+            }
+            setCustomDomain((prev) => ({
+              ...prev,
+              domain: domainEntry.domain,
+              serverIp: domainEntry.expectedIp || '',
+              status: domainEntry.status || '',
+              records,
+              lastCheckedAt: domainEntry.lastCheckedAt || '',
+              savedAt: domainEntry.savedAt || ''
+            }))
+          }
           return merged
         })
 
@@ -248,12 +302,315 @@ export default function SetupPage() {
     })
   }
 
+  const syncCustomDomainToForm = (entry: { domain: string; expectedIp?: string; status?: string; verificationToken?: string; verifiedAt?: string | null; lastCheckedAt?: string | null }) => {
+    setForm((prev) => ({
+      ...prev,
+      customDomains: [entry]
+    }))
+  }
+
+  const handlePrepareDomain = async () => {
+    const domain = customDomain.domain.trim()
+    if (!domain) {
+      toast.error('Please enter a domain name')
+      return
+    }
+
+    try {
+      setDomainBusy(true)
+      const response = await api.prepareCustomDomain({
+        domain,
+        serverIp: customDomain.serverIp.trim() || undefined
+      })
+      const data = response?.data || {}
+      const records = (data.records || []) as DnsRecord[]
+      setCustomDomain((prev) => ({
+        ...prev,
+        domain: data.domain || prev.domain,
+        status: data.status || 'pending',
+        records,
+        serverIp: data.expectedIp || prev.serverIp,
+        lastCheckedAt: '',
+        nginxConfig: ''
+      }))
+      syncCustomDomainToForm({
+        domain: data.domain || domain,
+        expectedIp: data.expectedIp || customDomain.serverIp,
+        status: data.status || 'pending',
+        verificationToken: data.verificationToken || '',
+        verifiedAt: null,
+        lastCheckedAt: null
+      })
+      toast.success('DNS records generated. Add them in your domain registrar.')
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to generate DNS records')
+    } finally {
+      setDomainBusy(false)
+    }
+  }
+
+  const handleVerifyDomain = async () => {
+    const domain = customDomain.domain.trim()
+    if (!domain) {
+      toast.error('Please enter a domain name')
+      return
+    }
+
+    try {
+      setDomainBusy(true)
+      const response = await api.verifyCustomDomain({
+        domain,
+        serverIp: customDomain.serverIp.trim() || undefined
+      })
+      const data = response?.data || {}
+      const verified = Boolean(data.verified)
+      const status = data.status || (verified ? 'verified' : 'pending')
+      const lastCheckedAt = data.lastCheckedAt || ''
+
+      setCustomDomain((prev) => ({
+        ...prev,
+        status,
+        lastCheckedAt
+      }))
+
+      setForm((prev) => {
+        const current = prev.customDomains?.[0]
+        if (!current) return prev
+        return {
+          ...prev,
+          customDomains: [{
+            ...current,
+            status,
+            lastCheckedAt,
+            verifiedAt: verified ? lastCheckedAt : current.verifiedAt || null
+          }]
+        }
+      })
+
+      if (verified) {
+        toast.success('Domain verified successfully')
+        try {
+          const applyResponse = await api.applyCaddyConfig({ domain, email: form.institute.supportEmail })
+          setCustomDomain((prev) => ({
+            ...prev,
+            caddyMessage: applyResponse?.message || 'Caddy configuration applied'
+          }))
+        } catch (applyError: any) {
+          setCustomDomain((prev) => ({
+            ...prev,
+            caddyMessage: applyError?.message || 'Failed to apply Caddy config'
+          }))
+        }
+      } else {
+        toast.error('DNS records not detected yet. Please try again after propagation.')
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to verify domain')
+    } finally {
+      setDomainBusy(false)
+    }
+  }
+
+  const copyToClipboard = async (value: string) => {
+    try {
+      await navigator.clipboard.writeText(value)
+      toast.success('Copied to clipboard')
+    } catch {
+      toast.error('Failed to copy')
+    }
+  }
+
+  const isValidDomain = (value: string) => {
+    const domain = value.trim().toLowerCase()
+    if (domain.length < 4) return false
+    if (!domain.includes('.')) return false
+    if (/\s/.test(domain)) return false
+    return /^[a-z0-9.-]+$/.test(domain)
+  }
+
+  const handleDomainBlur = async () => {
+    const domain = customDomain.domain.trim().toLowerCase()
+    if (!domain) return
+    if (!isValidDomain(domain)) return
+    if (lastPreparedDomainRef.current === domain) return
+    await handlePrepareDomain()
+    lastPreparedDomainRef.current = domain
+  }
+
+  const handleGenerateNginxConfig = async () => {
+    const domain = customDomain.domain.trim()
+    if (!domain) {
+      toast.error('Please enter a domain name')
+      return
+    }
+
+    try {
+      setDomainBusy(true)
+      const response = await api.getNginxConfig({
+        domain,
+        frontendPort: customDomain.frontendPort,
+        backendPort: customDomain.backendPort
+      })
+      const config = String(response?.data?.config || '')
+      setCustomDomain((prev) => ({ ...prev, nginxConfig: config }))
+      if (config) {
+        toast.success('Nginx config generated')
+      } else {
+        toast.error('Failed to generate config')
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to generate Nginx config')
+    } finally {
+      setDomainBusy(false)
+    }
+  }
+
+  const handleEnableSsl = async () => {
+    const domain = customDomain.domain.trim()
+    const email = customDomain.certbotEmail.trim()
+    if (!domain) {
+      toast.error('Please enter a domain name')
+      return
+    }
+    if (!email) {
+      toast.error('Please enter an email for certbot')
+      return
+    }
+
+    try {
+      setDomainBusy(true)
+      const response = await api.enableCustomDomainSsl({ domain, email })
+      const automated = Boolean(response?.data?.automated)
+      const command = String(response?.data?.command || '')
+      const output = String(response?.data?.output || '')
+
+      if (!automated && command) {
+        setCustomDomain((prev) => ({
+          ...prev,
+          sslMessage: `Run this on your server: ${command}`
+        }))
+        toast.success('Certbot command generated')
+        return
+      }
+
+      if (automated) {
+        setCustomDomain((prev) => ({
+          ...prev,
+          sslMessage: output || 'SSL enabled successfully'
+        }))
+        toast.success('SSL enabled successfully')
+        return
+      }
+
+      toast.error('SSL enable response was unexpected')
+    } catch (error: any) {
+      setCustomDomain((prev) => ({
+        ...prev,
+        sslMessage: error?.message || 'SSL enable failed'
+      }))
+      toast.error(error?.message || 'SSL enable failed')
+    } finally {
+      setDomainBusy(false)
+    }
+  }
+
+  const handleApplyCaddy = async () => {
+    const domain = customDomain.domain.trim()
+    if (!domain) {
+      toast.error('Please enter a domain name')
+      return
+    }
+    try {
+      setDomainBusy(true)
+      const response = await api.applyCaddyConfig({ domain, email: form.institute.supportEmail })
+      setCustomDomain((prev) => ({
+        ...prev,
+        caddyMessage: response?.message || 'Caddy configuration applied'
+      }))
+      toast.success('Caddy configuration applied')
+    } catch (error: any) {
+      setCustomDomain((prev) => ({
+        ...prev,
+        caddyMessage: error?.message || 'Failed to apply Caddy config'
+      }))
+      toast.error(error?.message || 'Failed to apply Caddy config')
+    } finally {
+      setDomainBusy(false)
+    }
+  }
+
+  const handleSaveDomain = async () => {
+    const domain = customDomain.domain.trim().toLowerCase()
+    if (!domain) {
+      toast.error('Please enter a domain name')
+      return
+    }
+    if (customDomain.status !== 'verified') {
+      toast.error('Verify DNS before saving the domain')
+      return
+    }
+    try {
+      setDomainBusy(true)
+      const response = await api.saveCustomDomain({ domain })
+      const savedAt = response?.data?.savedAt || new Date().toISOString()
+      setCustomDomain((prev) => ({ ...prev, savedAt }))
+      toast.success('Domain saved successfully')
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to save domain')
+    } finally {
+      setDomainBusy(false)
+    }
+  }
+
+  const handleEditDomain = () => {
+    setCustomDomain((prev) => ({ ...prev, savedAt: '' }))
+  }
+
+  const handleDeleteDomain = async () => {
+    const domain = customDomain.domain.trim().toLowerCase()
+    if (!domain) return
+    if (!window.confirm(`Remove domain ${domain}?`)) return
+    try {
+      setDomainBusy(true)
+      await api.deleteCustomDomain(domain)
+      setCustomDomain({
+        domain: '',
+        serverIp: '',
+        status: '',
+        records: [] as DnsRecord[],
+        lastCheckedAt: '',
+        frontendPort: 3001,
+        backendPort: 5001,
+        certbotEmail: '',
+        nginxConfig: '',
+        sslMessage: '',
+        sslEnabled: false,
+        caddyMessage: '',
+        savedAt: ''
+      })
+      lastPreparedDomainRef.current = ''
+      toast.success('Domain removed')
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to remove domain')
+    } finally {
+      setDomainBusy(false)
+    }
+  }
+
   const validateStep = (step: number) => {
     const section = sections[step].id as SectionId
 
     if (section === 'institute' && !form.institute.name.trim()) {
       toast.error('Institute name is required.')
       return false
+    }
+
+    if (section === 'domain') {
+      const domain = customDomain.domain.trim().toLowerCase()
+      if (domain && !isValidDomain(domain)) {
+        toast.error('Please enter a valid domain (example: lms.yourdomain.com).')
+        return false
+      }
     }
 
     if (section === 'database') {
@@ -443,6 +800,220 @@ export default function SetupPage() {
     </div>
   )
 
+  const renderDomain = () => (
+    <div className="space-y-4">
+      <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3">
+        <div>
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white">Custom Domain (Optional)</h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Add a custom domain for your LMS. We’ll generate DNS records and verify them when ready.
+          </p>
+        </div>
+        {customDomain.savedAt ? (
+          <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div>
+              <p className="text-sm text-gray-700 dark:text-gray-300">Saved domain</p>
+              <p className="text-base font-semibold text-gray-900 dark:text-white">{customDomain.domain}</p>
+              {customDomain.serverIp && (
+                <p className="text-xs text-gray-500 dark:text-gray-400">IP: {customDomain.serverIp}</p>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleEditDomain}
+                className="px-3 py-1 text-xs rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteDomain}
+                className="px-3 py-1 text-xs rounded-md border border-red-300 text-red-600 dark:border-red-600"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <input
+                className={inputClass}
+                placeholder="yourdomain.com"
+                value={customDomain.domain}
+                onChange={(e) => {
+                  const value = e.target.value
+                  setCustomDomain((prev) => ({
+                    ...prev,
+                    domain: value,
+                    records: value.trim().toLowerCase() === lastPreparedDomainRef.current ? prev.records : []
+                  }))
+                }}
+                onBlur={handleDomainBlur}
+              />
+              <input
+                className={inputClass}
+                placeholder="Server public IP (A record)"
+                value={customDomain.serverIp}
+                onChange={(e) => setCustomDomain((prev) => ({ ...prev, serverIp: e.target.value }))}
+              />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-gray-600 dark:text-gray-400">Frontend Port</label>
+                <input
+                  className={inputClass}
+                  type="number"
+                  placeholder="3001"
+                  value={customDomain.frontendPort}
+                  onChange={(e) => setCustomDomain((prev) => ({ ...prev, frontendPort: Number(e.target.value || 3001) }))}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-gray-600 dark:text-gray-400">Backend Port</label>
+                <input
+                  className={inputClass}
+                  type="number"
+                  placeholder="5001"
+                  value={customDomain.backendPort}
+                  onChange={(e) => setCustomDomain((prev) => ({ ...prev, backendPort: Number(e.target.value || 5001) }))}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-red-600 dark:text-red-400">
+              If another service is already running on these ports, change them before continuing.
+            </p>
+          </>
+        )}
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={handlePrepareDomain}
+            disabled={domainBusy}
+            className="px-4 py-2 rounded-xl bg-blue-600 text-white disabled:opacity-60"
+          >
+            {domainBusy ? 'Working...' : 'Generate DNS Records'}
+          </button>
+          <button
+            type="button"
+            onClick={handleVerifyDomain}
+            disabled={domainBusy || !customDomain.domain}
+            className="px-4 py-2 rounded-xl border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 disabled:opacity-60"
+          >
+            Verify DNS
+          </button>
+          {customDomain.status && (
+            <span className={`px-3 py-2 rounded-xl text-sm font-medium ${customDomain.status === 'verified' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'}`}>
+              {customDomain.status === 'verified' ? 'Verified' : 'Pending'}
+            </span>
+          )}
+        </div>
+
+        {customDomain.records.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-sm text-gray-700 dark:text-gray-300">DNS records to add:</p>
+            <div className="grid grid-cols-1 gap-2">
+              {customDomain.records.map((record, idx) => (
+                <div
+                  key={`${record.type}-${record.host}-${idx}`}
+                  className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 rounded-lg border border-gray-200 dark:border-gray-700 p-3"
+                >
+                  <div className="text-sm">
+                    <span className="font-semibold text-gray-900 dark:text-white">{record.type}</span>
+                    <span className="mx-2 text-gray-400">•</span>
+                    <span className="text-gray-700 dark:text-gray-300">Host: {record.host}</span>
+                    <span className="mx-2 text-gray-400">•</span>
+                    <span className="text-gray-700 dark:text-gray-300">Value: {record.value}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(record.host)}
+                      className="px-3 py-1 text-xs rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200"
+                    >
+                      Copy Host
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(record.value)}
+                      className="px-3 py-1 text-xs rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200"
+                    >
+                      Copy Value
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {customDomain.lastCheckedAt && (
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Last checked: {new Date(customDomain.lastCheckedAt).toLocaleString()}
+              </p>
+            )}
+          </div>
+        )}
+
+        {customDomain.caddyMessage && (
+          <div className="rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-2 text-xs text-gray-800 dark:text-gray-200">
+            {customDomain.caddyMessage}
+          </div>
+        )}
+
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <input
+              type="checkbox"
+              checked={customDomain.sslEnabled}
+              onChange={(e) => setCustomDomain((prev) => ({ ...prev, sslEnabled: e.target.checked }))}
+            />
+            Enable SSL
+          </label>
+          {customDomain.sslEnabled && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <input
+                  className={inputClass}
+                  type="email"
+                  placeholder="Certbot email (required)"
+                  value={customDomain.certbotEmail}
+                  onChange={(e) => setCustomDomain((prev) => ({ ...prev, certbotEmail: e.target.value }))}
+                />
+                <button
+                  type="button"
+                  onClick={handleEnableSsl}
+                  disabled={domainBusy || !customDomain.domain}
+                  className="px-4 py-2 rounded-xl bg-blue-600 text-white disabled:opacity-60"
+                >
+                  Enable SSL
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Certbot automation runs only if the server enables it. Otherwise we show the command to run manually.
+              </p>
+              {customDomain.sslMessage && (
+                <div className="rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-2 text-xs text-gray-800 dark:text-gray-200">
+                  {customDomain.sslMessage}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+        {!customDomain.savedAt && (
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={handleSaveDomain}
+              disabled={domainBusy || customDomain.status !== 'verified'}
+              className="px-4 py-2 rounded-xl bg-green-600 text-white disabled:opacity-60"
+            >
+              Save Domain
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
   const renderDatabase = () => (
     <div className="space-y-4">
       <select
@@ -588,6 +1159,7 @@ export default function SetupPage() {
     const section = sections[activeStep].id as SectionId
     if (section === 'institute') return renderInstitute()
     if (section === 'branding') return renderBranding()
+    if (section === 'domain') return renderDomain()
     if (section === 'defaults') return renderDefaults()
     if (section === 'database') return renderDatabase()
     if (section === 'smtp') return renderSmtp()
@@ -625,7 +1197,7 @@ export default function SetupPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto py-8 px-4 space-y-8">
+      <div className="max-w-7xl mx-auto py-8 px-4 space-y-8 pb-20">
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-2 overflow-x-auto">
             {sections.map((section, index) => {
@@ -647,7 +1219,7 @@ export default function SetupPage() {
           </div>
         </div>
 
-        <div className={cardClass}>
+        <div className={`${cardClass} flex flex-col`}>
           <div className="p-6 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-600 rounded-xl text-white">
@@ -657,7 +1229,9 @@ export default function SetupPage() {
             </div>
           </div>
 
-          <div className="p-6">{renderStep()}</div>
+          <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 320px)' }}>
+            {renderStep()}
+          </div>
 
           <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3">
             <button

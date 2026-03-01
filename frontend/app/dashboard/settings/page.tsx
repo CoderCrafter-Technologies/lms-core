@@ -160,9 +160,15 @@ const defaultSmtpSettings: SmtpSettings = {
   testEmail: '',
 }
 
+type DnsRecord = {
+  type: 'A' | 'TXT'
+  host: string
+  value: string
+}
+
 export default function SettingsPage() {
   const { user, logout } = useAuth()
-  const [activeTab, setActiveTab] = useState<'security' | 'signin' | 'notifications' | 'database' | 'smtp'>('security')
+  const [activeTab, setActiveTab] = useState<'security' | 'signin' | 'notifications' | 'database' | 'smtp' | 'domain'>('security')
   const [settings, setSettings] = useState<SecuritySettings>(defaultSecuritySettings)
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(defaultNotificationSettings)
   const [databaseSettings, setDatabaseSettings] = useState<DatabaseSettings>(defaultDatabaseSettings)
@@ -177,6 +183,18 @@ export default function SettingsPage() {
   const [message, setMessage] = useState<string | null>(null)
   const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '' })
   const [passwordLoading, setPasswordLoading] = useState(false)
+  const [domainBusy, setDomainBusy] = useState(false)
+  const [customDomain, setCustomDomain] = useState({
+    domain: '',
+    serverIp: '',
+    status: '',
+    records: [] as DnsRecord[],
+    lastCheckedAt: '',
+    certbotEmail: '',
+    sslMessage: '',
+    sslEnabled: false,
+    savedAt: ''
+  })
 
   const displayRole = useMemo(() => user?.role?.displayName || user?.role?.name || 'User', [user])
   const isAdmin = useMemo(() => String(user?.role?.name || '').toUpperCase() === 'ADMIN', [user])
@@ -203,16 +221,37 @@ export default function SettingsPage() {
 
       if (isAdmin) {
         try {
-          const [databaseResponse, smtpResponse, licensingResponse] = await Promise.all([
+          const [databaseResponse, smtpResponse, licensingResponse, setupPrefill] = await Promise.all([
             api.getDatabaseSettings(),
             api.getAdminSmtpSettings(),
-            api.getAdminLicensingPublicSummary()
+            api.getAdminLicensingPublicSummary(),
+            api.getSetupPrefill()
           ])
           setDatabaseSettings(databaseResponse?.settings || defaultDatabaseSettings)
           setDatabaseRuntime(databaseResponse?.runtime || null)
           setSmtpSettings((prev) => ({ ...prev, ...(smtpResponse?.settings || smtpResponse?.data || {}), authPass: '' }))
           const summary = licensingResponse?.data || null
           setLicensingSummary(summary)
+          const setup = setupPrefill?.data?.setup || {}
+          const domainEntry = Array.isArray(setup?.customDomains) ? setup.customDomains[0] : null
+          if (domainEntry?.domain) {
+            const records: DnsRecord[] = []
+            if (domainEntry.expectedIp) {
+              records.push({ type: 'A', host: '@', value: domainEntry.expectedIp })
+            }
+            if (domainEntry.verificationToken) {
+              records.push({ type: 'TXT', host: '_lms-verify', value: domainEntry.verificationToken })
+            }
+            setCustomDomain((prev) => ({
+              ...prev,
+              domain: domainEntry.domain,
+              serverIp: domainEntry.expectedIp || '',
+              status: domainEntry.status || '',
+              records,
+              lastCheckedAt: domainEntry.lastCheckedAt || '',
+              savedAt: domainEntry.savedAt || ''
+            }))
+          }
         } catch {
           setDatabaseSettings(defaultDatabaseSettings)
           setSmtpSettings(defaultSmtpSettings)
@@ -229,6 +268,127 @@ export default function SettingsPage() {
 
   const updateNotificationToggle = (key: keyof NotificationSettings) => {
     setNotificationSettings((prev) => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  const isValidDomain = (value: string) => {
+    const domain = value.trim().toLowerCase()
+    if (domain.length < 4) return false
+    if (!domain.includes('.')) return false
+    if (/\s/.test(domain)) return false
+    return /^[a-z0-9.-]+$/.test(domain)
+  }
+
+  const handlePrepareDomain = async () => {
+    const domain = customDomain.domain.trim()
+    if (!domain || !isValidDomain(domain)) {
+      setMessage('Please enter a valid domain.')
+      return
+    }
+    try {
+      setDomainBusy(true)
+      const response = await api.prepareCustomDomain({
+        domain,
+        serverIp: customDomain.serverIp.trim() || undefined
+      })
+      const data = response?.data || {}
+      const records = (data.records || []) as DnsRecord[]
+      setCustomDomain((prev) => ({
+        ...prev,
+        domain: data.domain || prev.domain,
+        status: data.status || 'pending',
+        records,
+        serverIp: data.expectedIp || prev.serverIp,
+        lastCheckedAt: '',
+        savedAt: ''
+      }))
+      setMessage('DNS records generated. Add them to your domain registrar.')
+    } catch (error: any) {
+      setMessage(error?.message || 'Failed to generate DNS records')
+    } finally {
+      setDomainBusy(false)
+    }
+  }
+
+  const handleVerifyDomain = async () => {
+    const domain = customDomain.domain.trim()
+    if (!domain || !isValidDomain(domain)) {
+      setMessage('Please enter a valid domain.')
+      return
+    }
+    try {
+      setDomainBusy(true)
+      const response = await api.verifyCustomDomain({
+        domain,
+        serverIp: customDomain.serverIp.trim() || undefined
+      })
+      const data = response?.data || {}
+      const verified = Boolean(data.verified)
+      const status = data.status || (verified ? 'verified' : 'pending')
+      const lastCheckedAt = data.lastCheckedAt || ''
+      setCustomDomain((prev) => ({
+        ...prev,
+        status,
+        lastCheckedAt
+      }))
+      setMessage(verified ? 'Domain verified.' : 'DNS not found yet. Try again later.')
+    } catch (error: any) {
+      setMessage(error?.message || 'Failed to verify domain')
+    } finally {
+      setDomainBusy(false)
+    }
+  }
+
+  const handleSaveDomain = async () => {
+    const domain = customDomain.domain.trim().toLowerCase()
+    if (!domain || !isValidDomain(domain)) {
+      setMessage('Please enter a valid domain.')
+      return
+    }
+    if (customDomain.status !== 'verified') {
+      setMessage('Verify DNS before saving domain.')
+      return
+    }
+    try {
+      setDomainBusy(true)
+      const response = await api.saveCustomDomain({ domain })
+      const savedAt = response?.data?.savedAt || new Date().toISOString()
+      setCustomDomain((prev) => ({ ...prev, savedAt }))
+      setMessage('Domain saved successfully.')
+    } catch (error: any) {
+      setMessage(error?.message || 'Failed to save domain')
+    } finally {
+      setDomainBusy(false)
+    }
+  }
+
+  const handleEditDomain = () => {
+    setCustomDomain((prev) => ({ ...prev, savedAt: '' }))
+  }
+
+  const handleDeleteDomain = async () => {
+    const domain = customDomain.domain.trim().toLowerCase()
+    if (!domain) return
+    if (!window.confirm(`Remove domain ${domain}?`)) return
+    try {
+      setDomainBusy(true)
+      await api.deleteCustomDomain(domain)
+      setCustomDomain({
+        domain: '',
+        serverIp: '',
+        status: '',
+        records: [] as DnsRecord[],
+        lastCheckedAt: '',
+        certbotEmail: '',
+        sslMessage: '',
+        sslEnabled: false,
+        savedAt: ''
+      })
+      setMessage('Domain removed.')
+    } catch (error: any) {
+      setMessage(error?.message || 'Failed to remove domain')
+    } finally {
+      setDomainBusy(false)
+    }
   }
 
   const saveNotificationSettings = async () => {
@@ -479,6 +639,19 @@ export default function SettingsPage() {
             }}
           >
             SMTP
+          </button>
+        )}
+        {isAdmin && (
+          <button
+            onClick={() => setActiveTab('domain')}
+            className={`px-4 py-2 rounded-md text-sm font-medium ${activeTab === 'domain' ? 'text-white' : ''}`}
+            style={{
+              backgroundColor: activeTab === 'domain' ? 'var(--color-primary)' : 'var(--color-surface)',
+              color: activeTab === 'domain' ? '#fff' : 'var(--color-text)',
+              border: `1px solid var(--color-border)`,
+            }}
+          >
+            Domain
           </button>
         )}
       </div>
@@ -1047,6 +1220,150 @@ export default function SettingsPage() {
                 {saving ? 'Testing...' : 'Test SMTP'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'domain' && isAdmin && (
+        <div className="space-y-4">
+          <div className="rounded-lg border p-4" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+            <h2 className="font-semibold mb-3" style={{ color: 'var(--color-text)' }}>Custom Domain</h2>
+            <p className="text-sm mb-4" style={{ color: 'var(--color-text-secondary)' }}>
+              Manage your LMS domain. Add DNS records, verify, then save. Saved domains can be edited or removed.
+            </p>
+
+            {customDomain.savedAt ? (
+              <div className="rounded-md border p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
+                   style={{ borderColor: 'var(--color-border)' }}>
+                <div>
+                  <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>Saved domain</p>
+                  <p className="text-base font-semibold" style={{ color: 'var(--color-text)' }}>{customDomain.domain}</p>
+                  {customDomain.serverIp && (
+                    <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>IP: {customDomain.serverIp}</p>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleEditDomain}
+                    className="px-3 py-1 text-xs rounded-md border"
+                    style={{ borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeleteDomain}
+                    className="px-3 py-1 text-xs rounded-md border"
+                    style={{ borderColor: 'var(--color-error)', color: 'var(--color-error)' }}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <input
+                    className="w-full rounded-md border px-3 py-2"
+                    style={{ borderColor: 'var(--color-border)', color: 'var(--color-text)', backgroundColor: 'var(--color-surface)' }}
+                    placeholder="yourdomain.com"
+                    value={customDomain.domain}
+                    onChange={(e) => setCustomDomain((prev) => ({
+                      ...prev,
+                      domain: e.target.value,
+                      records: []
+                    }))}
+                  />
+                  <input
+                    className="w-full rounded-md border px-3 py-2"
+                    style={{ borderColor: 'var(--color-border)', color: 'var(--color-text)', backgroundColor: 'var(--color-surface)' }}
+                    placeholder="Server public IP"
+                    value={customDomain.serverIp}
+                    onChange={(e) => setCustomDomain((prev) => ({ ...prev, serverIp: e.target.value }))}
+                  />
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={handlePrepareDomain}
+                    disabled={domainBusy}
+                    className="px-4 py-2 rounded-md text-white"
+                    style={{ backgroundColor: 'var(--color-primary)' }}
+                  >
+                    {domainBusy ? 'Working...' : 'Generate DNS Records'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleVerifyDomain}
+                    disabled={domainBusy || !customDomain.domain}
+                    className="px-4 py-2 rounded-md border"
+                    style={{ borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                  >
+                    Verify DNS
+                  </button>
+                  {customDomain.status && (
+                    <span className="px-3 py-2 rounded-md text-xs font-medium"
+                          style={{
+                            backgroundColor: customDomain.status === 'verified' ? 'var(--color-success-light)' : 'var(--color-warning-light)',
+                            color: customDomain.status === 'verified' ? 'var(--color-success)' : 'var(--color-warning)'
+                          }}>
+                      {customDomain.status === 'verified' ? 'Verified' : 'Pending'}
+                    </span>
+                  )}
+                </div>
+
+                {customDomain.records.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>DNS records to add:</p>
+                    <div className="grid grid-cols-1 gap-2">
+                      {customDomain.records.map((record, idx) => (
+                        <div
+                          key={`${record.type}-${record.host}-${idx}`}
+                          className="rounded-md border p-2 flex flex-col md:flex-row md:items-center md:justify-between gap-2"
+                          style={{ borderColor: 'var(--color-border)' }}
+                        >
+                          <div className="text-sm" style={{ color: 'var(--color-text)' }}>
+                            <strong>{record.type}</strong> • Host: {record.host} • Value: {record.value}
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => navigator.clipboard.writeText(record.host)}
+                              className="px-2 py-1 text-xs rounded-md border"
+                              style={{ borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                            >
+                              Copy Host
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => navigator.clipboard.writeText(record.value)}
+                              className="px-2 py-1 text-xs rounded-md border"
+                              style={{ borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                            >
+                              Copy Value
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={handleSaveDomain}
+                    disabled={domainBusy || customDomain.status !== 'verified'}
+                    className="px-4 py-2 rounded-md text-white"
+                    style={{ backgroundColor: 'var(--color-success)' }}
+                  >
+                    Save Domain
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

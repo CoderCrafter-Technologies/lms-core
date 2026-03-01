@@ -634,6 +634,17 @@ export default function SetupPage() {
       const response = await api.saveCustomDomain({ domain })
       const savedAt = response?.data?.savedAt || new Date().toISOString()
       setCustomDomain((prev) => ({ ...prev, savedAt }))
+      setForm((prev) => {
+        const current = prev.customDomains?.[0]
+        if (!current) return prev
+        return {
+          ...prev,
+          customDomains: [{
+            ...current,
+            savedAt
+          }]
+        }
+      })
       toast.success('Domain saved successfully')
     } catch (error: any) {
       toast.error(error?.message || 'Failed to save domain')
@@ -644,6 +655,8 @@ export default function SetupPage() {
 
   const handleEditDomain = () => {
     setCustomDomain((prev) => ({ ...prev, savedAt: '' }))
+    setDnsDiagnostics(null)
+    setDnsDiagnosticsMessage('')
   }
 
   const handleDeleteDomain = async () => {
@@ -901,17 +914,17 @@ export default function SetupPage() {
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={handleEditDomain}
-                className="px-3 py-1 text-xs rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200"
-              >
-                Edit
-              </button>
-              <button
-                type="button"
                 onClick={handleDeleteDomain}
                 className="px-3 py-1 text-xs rounded-md border border-red-300 text-red-600 dark:border-red-600"
               >
-                Delete
+                Remove
+              </button>
+              <button
+                type="button"
+                onClick={handleEditDomain}
+                className="px-3 py-1 text-xs rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200"
+              >
+                Add Another
               </button>
             </div>
           </div>
@@ -1147,7 +1160,7 @@ export default function SetupPage() {
               disabled={domainBusy || customDomain.status !== 'verified'}
               className="px-4 py-2 rounded-xl bg-green-600 text-white disabled:opacity-60"
             >
-              Save Domain
+              Add Domain
             </button>
           </div>
         )}

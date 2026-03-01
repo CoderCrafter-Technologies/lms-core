@@ -44,7 +44,7 @@ const resolveApiBaseUrl = () => {
   return `${fallbackProtocol}//${hostname}:5000/api`;
 };
 
-const API_BASE_URL = resolveApiBaseUrl();
+const getApiBaseUrl = () => resolveApiBaseUrl();
 const detectClientTimezone = () => {
   if (typeof window === 'undefined') return 'UTC';
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -108,6 +108,8 @@ class ApiService {
       endpoint.startsWith('/setup/custom-domains/verify') ||
       endpoint.startsWith('/setup/custom-domains/diagnose') ||
       endpoint.startsWith('/setup/custom-domains/apply-caddy') ||
+      endpoint.startsWith('/setup/custom-domains/save') ||
+      endpoint.startsWith('/setup/custom-domains/') ||
       endpoint.startsWith('/setup/brand-assets') ||
       endpoint.startsWith('/setup/complete') ||
       endpoint.startsWith('/setup/smtp/test') ||
@@ -124,7 +126,7 @@ class ApiService {
 
     this.refreshPromise = (async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        const response = await fetch(`${getApiBaseUrl()}/auth/refresh`, {
           method: 'POST',
           credentials: 'include',
           headers: {
@@ -158,7 +160,7 @@ class ApiService {
   }
 
   private async rawRequest(endpoint: string, options: RequestInit = {}, allowRetry = true) {
-    const url = `${API_BASE_URL}${endpoint}`;
+    const url = `${getApiBaseUrl()}${endpoint}`;
     const requiresAuth = !this.isPublicEndpoint(endpoint);
     let token = this.getToken();
 

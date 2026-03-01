@@ -25,6 +25,18 @@ const buildOriginsFromEnv = () =>
     .map((item) => item.trim())
     .filter(Boolean);
 
+const isIpOrLocalhost = (origin = '') => {
+  try {
+    const parsed = new URL(origin);
+    const host = parsed.hostname;
+    if (!host) return false;
+    if (host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0') return true;
+    return /^\d{1,3}(\.\d{1,3}){3}$/.test(host);
+  } catch {
+    return false;
+  }
+};
+
 const cache = {
   origins: [],
   expiresAt: 0,
@@ -69,6 +81,7 @@ const getAllowedOrigins = () => cache.origins;
 const isOriginAllowed = (origin) => {
   if (!origin) return true;
   if (!cache.setupCompleted) return true;
+  if (isIpOrLocalhost(origin)) return true;
   if (!cache.hasCustomDomain) return true;
   const normalized = normalizeOrigin(origin);
   if (!normalized) return true;

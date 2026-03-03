@@ -42,32 +42,49 @@ export function SetupProvider({ children }: { children: React.ReactNode }) {
     let mounted = true
     const bootstrap = async () => {
       try {
+        let cachedSettings: any | null = null
         if (typeof window !== 'undefined') {
           const cached = localStorage.getItem('lms-public-settings')
           if (cached && !settings) {
             try {
-              setSettings(JSON.parse(cached))
+              cachedSettings = JSON.parse(cached)
+              setSettings(cachedSettings)
             } catch {
               // ignore cache parse errors
             }
           }
         }
-        const [statusRes, settingsRes] = await Promise.all([
+
+        const [statusResult, settingsResult] = await Promise.allSettled([
           api.getSetupStatus(),
           api.getPublicSetupSettings()
         ])
         if (!mounted) return
 
-        const isCompleted = Boolean(statusRes?.data?.completed)
-        setCompleted(isCompleted)
-        const nextSettings = settingsRes?.data || null
-        setSettings(nextSettings)
-        if (typeof window !== 'undefined' && nextSettings) {
-          localStorage.setItem('lms-public-settings', JSON.stringify(nextSettings))
+        const statusRes = statusResult.status === 'fulfilled' ? statusResult.value : null
+        const settingsRes = settingsResult.status === 'fulfilled' ? settingsResult.value : null
+
+        const nextSettings = settingsRes?.data || cachedSettings || null
+        if (nextSettings) {
+          setSettings(nextSettings)
+          if (typeof window !== 'undefined' && settingsRes?.data) {
+            localStorage.setItem('lms-public-settings', JSON.stringify(settingsRes.data))
+          }
         }
 
-        const branding = settingsRes?.data?.branding || {}
-        const dashboardTheme = settingsRes?.data?.dashboardTheme || {}
+        const isCompleted = Boolean(
+          statusRes?.data?.completed
+          ?? settingsRes?.data?.completed
+          ?? cachedSettings?.completed
+        )
+        setCompleted(isCompleted)
+
+        if (statusResult.status === 'rejected' && settingsResult.status === 'rejected' && !cachedSettings) {
+          throw new Error('Failed to load setup settings')
+        }
+
+        const branding = nextSettings?.branding || {}
+        const dashboardTheme = nextSettings?.dashboardTheme || {}
         if (typeof document !== 'undefined') {
           const root = document.documentElement.style
           const applyVar = (name: string, value?: string | null) => {
@@ -119,11 +136,6 @@ export function SetupProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
-        if (!isCompleted && pathname !== '/setup') {
-          router.replace('/setup')
-        } else if (isCompleted && pathname === '/setup') {
-          router.replace('/auth/login')
-        }
       } catch {
         if (!mounted) return
         // Fail-open: do not force users into setup wizard on transient API errors.
@@ -137,7 +149,16 @@ export function SetupProvider({ children }: { children: React.ReactNode }) {
     return () => {
       mounted = false
     }
-  }, [pathname, router])
+  }, [])
+
+  useEffect(() => {
+    if (loading) return
+    if (!completed && pathname !== '/setup') {
+      router.replace('/setup')
+    } else if (completed && pathname === '/setup') {
+      router.replace('/auth/login')
+    }
+  }, [completed, loading, pathname, router])
 
   useEffect(() => {
     if (typeof document === 'undefined') return
@@ -253,10 +274,24 @@ export function SetupProvider({ children }: { children: React.ReactNode }) {
       updateBranding: (next: Partial<BrandingConfig>) => {
         setSettings((prev: any) => ({
           ...(prev || {}),
-          branding: {
-            ...(prev?.branding || {}),
-            ...next
-          }
+          branding: (() => {
+            const nextBranding = {
+              ...(prev?.branding || {}),
+              ...next
+            }
+            if (typeof window !== 'undefined') {
+              try {
+                const nextSettings = {
+                  ...(prev || {}),
+                  branding: nextBranding
+                }
+                localStorage.setItem('lms-public-settings', JSON.stringify(nextSettings))
+              } catch {
+                // ignore local cache errors
+              }
+            }
+            return nextBranding
+          })()
         }))
       }
     }),

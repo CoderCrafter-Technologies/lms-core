@@ -799,7 +799,7 @@ export default function SetupPage() {
         if (faviconFile) formData.append('favicon', faviconFile)
 
         const uploadResponse = await api.uploadSetupBrandAssets(formData)
-        const assets = uploadResponse?.data || {}
+        const assets = uploadResponse?.data?.data || uploadResponse?.data || uploadResponse || {}
         payload.branding.logoUrl = String(assets.logoUrl || payload.branding.logoUrl || '').trim()
         payload.branding.faviconUrl = String(
           assets.faviconUrl || payload.branding.faviconUrl || payload.branding.logoUrl || ''
@@ -815,6 +815,21 @@ export default function SetupPage() {
       }
 
       await api.completeSetup(payload)
+      if (typeof window !== 'undefined') {
+        try {
+          const cachedRaw = localStorage.getItem('lms-public-settings')
+          const cached = cachedRaw ? JSON.parse(cachedRaw) : {}
+          localStorage.setItem('lms-public-settings', JSON.stringify({
+            ...cached,
+            completed: true,
+            institute: payload.institute,
+            branding: payload.branding,
+            defaults: payload.defaults
+          }))
+        } catch {
+          // ignore local cache errors
+        }
+      }
       toast.success('Setup completed. You can now sign in as admin.')
       router.replace('/auth/login')
     } catch (error: any) {

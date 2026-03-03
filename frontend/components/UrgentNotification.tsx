@@ -94,7 +94,7 @@ export default function UrgentNotification() {
             </button>
           </div>
           <div className="mt-3 flex space-x-2">
-            <Link href="/dashboard/admin/support">
+            <Link href="/dashboard/admin/support" prefetch={false}>
               <button className="text-xs bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700">
                 View Details
               </button>

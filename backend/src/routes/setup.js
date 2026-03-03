@@ -218,6 +218,14 @@ router.get('/public-settings', async (req, res, next) => {
     const status = await setupService.getStatus();
     const publicSettings = await systemSettingsStore.getPublicAppSettings();
     const setupSettings = await systemSettingsStore.getSetupSettings();
+    const branding = publicSettings?.branding || {};
+    const institute = publicSettings?.institute || {};
+    const normalizedBranding = {
+      ...branding,
+      appName: String(branding?.appName || institute?.name || 'Institute LMS').trim(),
+      logoUrl: String(branding?.logoUrl || '').trim(),
+      faviconUrl: String(branding?.faviconUrl || branding?.logoUrl || '').trim()
+    };
     const savedDomain = (setupSettings?.customDomains || [])
       .filter((item) => item?.domain && item?.savedAt)
       .sort((a, b) => String(b.savedAt || '').localeCompare(String(a.savedAt || '')))[0];
@@ -225,6 +233,7 @@ router.get('/public-settings', async (req, res, next) => {
       success: true,
       data: {
         ...publicSettings,
+        branding: normalizedBranding,
         customDomain: savedDomain ? { domain: savedDomain.domain, savedAt: savedDomain.savedAt } : null,
         completed: status.completed,
         watermark: {

@@ -44,8 +44,8 @@ services:
       POSTGRES_DB: lms_futureproof
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
+    expose:
+      - "5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     dns:
@@ -80,7 +80,7 @@ services:
       JWT_REFRESH_EXPIRES_IN: 7d
       FRONTEND_URL: http://localhost:3000,http://frontend:3000
       RATE_LIMIT_WINDOW_MS: 900000
-      RATE_LIMIT_MAX_REQUESTS: 200
+      RATE_LIMIT_MAX_REQUESTS: 400
       ENABLE_CONTROL_PLANE_SYNC: "false"
       CONTROL_PLANE_URL: ""
       CONTROL_PLANE_SIGNING_SECRET: ""

@@ -72,6 +72,7 @@ class ApiService {
   private static instance: ApiService;
   private token: string | null = null;
   private refreshPromise: Promise<string | null> | null = null;
+  private pendingGetRequests: Map<string, Promise<any>> = new Map();
 
   private constructor() {}
 
@@ -277,14 +278,40 @@ class ApiService {
   }
 
   private async request(endpoint: string, options: RequestInit = {}, allowRetry = true) {
-    const response = await this.rawRequest(endpoint, options, allowRetry);
-    let data: any = null;
-    try {
-      data = await response.json();
-    } catch {
-      data = null;
+    const method = String(options.method || 'GET').toUpperCase();
+    const isGet = method === 'GET' && !options.body;
+    const requestKey = isGet
+      ? `${endpoint}|${JSON.stringify(options.headers || {})}|${allowRetry ? 'retry' : 'no-retry'}`
+      : '';
+
+    if (isGet) {
+      const pending = this.pendingGetRequests.get(requestKey);
+      if (pending) {
+        return pending;
+      }
     }
-    return data;
+
+    const runner = (async () => {
+      const response = await this.rawRequest(endpoint, options, allowRetry);
+      let data: any = null;
+      try {
+        data = await response.json();
+      } catch {
+        data = null;
+      }
+      return data;
+    })();
+
+    if (!isGet) {
+      return runner;
+    }
+
+    this.pendingGetRequests.set(requestKey, runner);
+    try {
+      return await runner;
+    } finally {
+      this.pendingGetRequests.delete(requestKey);
+    }
   }
 
   // Auth endpoints

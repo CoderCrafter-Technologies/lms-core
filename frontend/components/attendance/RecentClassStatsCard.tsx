@@ -48,7 +48,7 @@ export default function RecentClassStatsCard({ limit = 5, title = 'Recent Class 
     <div className="rounded-lg border p-5" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-semibold" style={{ color: 'var(--color-text)' }}>{title}</h3>
-        <Link href="/dashboard/attendance" className="text-sm" style={{ color: 'var(--color-primary)' }}>
+        <Link href="/dashboard/attendance" prefetch={false} className="text-sm" style={{ color: 'var(--color-primary)' }}>
           View all
         </Link>
       </div>
@@ -68,7 +68,7 @@ export default function RecentClassStatsCard({ limit = 5, title = 'Recent Class 
                   {new Date(row.scheduledStartTime).toLocaleString()} · {row.batch?.name || 'Batch'}
                 </p>
               </div>
-              <Link href={`/dashboard/attendance?classId=${row.classId}`} className="text-xs" style={{ color: 'var(--color-primary)' }}>
+              <Link href={`/dashboard/attendance?classId=${row.classId}`} prefetch={false} className="text-xs" style={{ color: 'var(--color-primary)' }}>
                 Details
               </Link>
             </div>

@@ -2,8 +2,16 @@
 
 import Image from 'next/image'
 import logo from '@/assets/logo_blue.png'
+import { useSetup } from '@/components/providers/SetupProvider'
 
 export default function BrandWatermark() {
+  const { settings, branding } = useSetup()
+  const showWatermark = Boolean(
+    settings?.watermark?.forceVisible ?? branding?.showCoderCrafterWatermark ?? !branding?.whiteLabelEnabled
+  )
+
+  if (!showWatermark) return null
+
   return (
     <div
       className="fixed bottom-2 right-2 z-[9999] opacity-55 hover:opacity-80 transition-opacity pointer-events-none select-none"

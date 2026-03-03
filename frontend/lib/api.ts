@@ -955,8 +955,19 @@ class ApiService {
     return this.request('/admin/landing-page');
   }
 
+  async getBrandingSettings() {
+    return this.request('/admin/branding');
+  }
+
   async updateLandingPageSettings(payload: Record<string, any>) {
     return this.request('/admin/landing-page', {
+      method: 'PUT',
+      body: JSON.stringify(payload || {}),
+    });
+  }
+
+  async updateBrandingSettings(payload: Record<string, any>) {
+    return this.request('/admin/branding', {
       method: 'PUT',
       body: JSON.stringify(payload || {}),
     });

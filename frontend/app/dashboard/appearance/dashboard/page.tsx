@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { api } from '@/lib/api'
 import { Palette, Save } from 'lucide-react'
+import { useTheme } from '@/components/providers/ThemeProvider'
 
 type DashboardTheme = {
   fontFamily: string
@@ -15,6 +16,7 @@ type DashboardTheme = {
   cardBorder: string
   sidebarColor: string
   sidebarTextColor: string
+  sidebarActiveColor: string
   primaryColor: string
   accentColor: string
   modalBackground: string
@@ -37,6 +39,7 @@ const defaultTheme: DashboardTheme = {
   cardBorder: '',
   sidebarColor: '',
   sidebarTextColor: '',
+  sidebarActiveColor: '',
   primaryColor: '',
   accentColor: '',
   modalBackground: '',
@@ -53,6 +56,7 @@ export default function DashboardAppearancePage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const { theme: activeTheme } = useTheme()
 
   useEffect(() => {
     let mounted = true
@@ -91,27 +95,49 @@ export default function DashboardAppearancePage() {
         root.removeProperty(name)
       }
     }
-    applyVar('--color-background', theme.backgroundColor)
-    applyVar('--color-surface', theme.surfaceColor)
-    applyVar('--color-card', theme.cardBackground)
-    applyVar('--color-card-border', theme.cardBorder)
-    applyVar('--color-sidebar', theme.sidebarColor)
-    applyVar('--color-sidebar-text', theme.sidebarTextColor)
-    applyVar('--color-text', theme.textColor)
-    applyVar('--color-primary', theme.primaryColor)
-    applyVar('--color-accent', theme.accentColor)
-    applyVar('--color-modal', theme.modalBackground)
-    applyVar('--color-modal-text', theme.modalTextColor)
-    applyVar('--color-toast', theme.toastBackground)
-    applyVar('--color-toast-text', theme.toastTextColor)
-    applyVar('--font-family-base', theme.fontFamily)
-    if (theme.baseFontSize) {
-      root.setProperty('--font-size-base', `${theme.baseFontSize}px`)
+
+    if (activeTheme === 'system') {
+      applyVar('--color-background', theme.backgroundColor)
+      applyVar('--color-surface', theme.surfaceColor)
+      applyVar('--color-card', theme.cardBackground)
+      applyVar('--color-card-border', theme.cardBorder)
+      applyVar('--color-sidebar', theme.sidebarColor)
+      applyVar('--color-sidebar-text', theme.sidebarTextColor)
+      applyVar('--color-sidebar-active', theme.sidebarActiveColor)
+      applyVar('--color-text', theme.textColor)
+      applyVar('--color-primary', theme.primaryColor)
+      applyVar('--color-accent', theme.accentColor)
+      applyVar('--color-modal', theme.modalBackground)
+      applyVar('--color-modal-text', theme.modalTextColor)
+      applyVar('--color-toast', theme.toastBackground)
+      applyVar('--color-toast-text', theme.toastTextColor)
+      applyVar('--font-family-base', theme.fontFamily)
+      if (theme.baseFontSize) {
+        root.setProperty('--font-size-base', `${theme.baseFontSize}px`)
+      }
+      if (theme.headingFontSize) {
+        root.setProperty('--font-size-3xl', `${theme.headingFontSize}px`)
+      }
+    } else {
+      applyVar('--color-background', null)
+      applyVar('--color-surface', null)
+      applyVar('--color-card', null)
+      applyVar('--color-card-border', null)
+      applyVar('--color-sidebar', null)
+      applyVar('--color-sidebar-text', null)
+      applyVar('--color-sidebar-active', null)
+      applyVar('--color-text', null)
+      applyVar('--color-primary', null)
+      applyVar('--color-accent', null)
+      applyVar('--color-modal', null)
+      applyVar('--color-modal-text', null)
+      applyVar('--color-toast', null)
+      applyVar('--color-toast-text', null)
+      applyVar('--font-family-base', null)
+      root.removeProperty('--font-size-base')
+      root.removeProperty('--font-size-3xl')
     }
-    if (theme.headingFontSize) {
-      root.setProperty('--font-size-3xl', `${theme.headingFontSize}px`)
-    }
-  }, [theme])
+  }, [theme, activeTheme])
 
   const previewStyles = useMemo(() => ({
     '--preview-font-family': theme.fontFamily,
@@ -124,6 +150,7 @@ export default function DashboardAppearancePage() {
     '--preview-card-border': theme.cardBorder || 'var(--color-border)',
     '--preview-sidebar': theme.sidebarColor || 'var(--color-sidebar)',
     '--preview-sidebar-text': theme.sidebarTextColor || 'var(--color-text)',
+    '--preview-sidebar-active': theme.sidebarActiveColor || 'var(--color-primary)',
     '--preview-primary': theme.primaryColor || 'var(--color-primary)',
     '--preview-accent': theme.accentColor || 'var(--color-accent)',
     '--preview-modal': theme.modalBackground || 'var(--color-surface)',
@@ -134,11 +161,11 @@ export default function DashboardAppearancePage() {
     '--preview-button-radius': `${theme.buttonRadius}px`
   }) as CSSProperties, [theme])
 
-  const saveTheme = async () => {
+  const saveTheme = async (payloadOverride?: DashboardTheme) => {
     setSaving(true)
     setStatus(null)
     try {
-      const payload = { ...theme, updatedAt: new Date().toISOString() }
+      const payload = { ...(payloadOverride || theme), updatedAt: new Date().toISOString() }
       const response = await api.updateDashboardTheme(payload)
       const saved = response?.settings || response?.data || payload
       setTheme({ ...defaultTheme, ...saved })
@@ -150,6 +177,7 @@ export default function DashboardAppearancePage() {
         if (saved.cardBorder) root.setProperty('--color-card-border', saved.cardBorder)
         if (saved.sidebarColor) root.setProperty('--color-sidebar', saved.sidebarColor)
         if (saved.sidebarTextColor) root.setProperty('--color-sidebar-text', saved.sidebarTextColor)
+        if (saved.sidebarActiveColor) root.setProperty('--color-sidebar-active', saved.sidebarActiveColor)
         if (saved.textColor) root.setProperty('--color-text', saved.textColor)
         if (saved.primaryColor) root.setProperty('--color-primary', saved.primaryColor)
         if (saved.accentColor) root.setProperty('--color-accent', saved.accentColor)
@@ -281,6 +309,10 @@ export default function DashboardAppearancePage() {
               <input type="color" className="mt-1 w-full h-9 rounded-lg border" value={theme.sidebarTextColor || '#f8fafc'} onChange={(event) => updateField('sidebarTextColor', event.target.value)} />
             </label>
           </div>
+          <label className="block text-xs font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+            Sidebar Active Item
+            <input type="color" className="mt-1 w-full h-9 rounded-lg border" value={theme.sidebarActiveColor || '#2563eb'} onChange={(event) => updateField('sidebarActiveColor', event.target.value)} />
+          </label>
 
           <div className="grid gap-3 grid-cols-2">
             <label className="block text-xs font-medium" style={{ color: 'var(--color-text-secondary)' }}>
@@ -331,6 +363,18 @@ export default function DashboardAppearancePage() {
           <Save className="h-4 w-4" />
           {saving ? 'Saving...' : 'Save Dashboard'}
         </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setTheme(defaultTheme)
+            saveTheme(defaultTheme)
+          }}
+          className="mt-3 w-full inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold"
+          style={{ borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+        >
+          Reset to Default
+        </button>
       </aside>
 
       <main className="p-6 overflow-y-auto" style={previewStyles}>
@@ -347,8 +391,15 @@ export default function DashboardAppearancePage() {
           <div className="p-4 rounded-xl m-4" style={{ backgroundColor: 'var(--preview-sidebar)', color: 'var(--preview-sidebar-text)' }}>
             <div className="text-sm font-semibold mb-4">Sidebar</div>
             <div className="space-y-2 text-xs">
-              {['Dashboard', 'Courses', 'Students', 'Settings'].map((item) => (
-                <div key={item} className="rounded-lg px-3 py-2" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
+              {['Dashboard', 'Courses', 'Students', 'Settings'].map((item, index) => (
+                <div
+                  key={item}
+                  className="rounded-lg px-3 py-2"
+                  style={{
+                    backgroundColor: index === 0 ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.08)',
+                    color: index === 0 ? 'var(--preview-sidebar-active)' : 'var(--preview-sidebar-text)'
+                  }}
+                >
                   {item}
                 </div>
               ))}

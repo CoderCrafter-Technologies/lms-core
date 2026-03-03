@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
 import { Spinner } from '@/components/ui/Spinner'
+import { useTheme } from '@/components/providers/ThemeProvider'
 
 type BrandingConfig = {
   appName: string
@@ -12,6 +13,7 @@ type BrandingConfig = {
   primaryColor: string
   accentColor: string
   whiteLabelEnabled: boolean
+  showCoderCrafterWatermark?: boolean
 }
 
 type SetupContextType = {
@@ -19,6 +21,7 @@ type SetupContextType = {
   loading: boolean
   settings: any | null
   branding: BrandingConfig
+  updateBranding: (next: Partial<BrandingConfig>) => void
 }
 
 const SetupContext = createContext<SetupContextType | undefined>(undefined)
@@ -29,6 +32,7 @@ export function SetupProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [completed, setCompleted] = useState(true)
   const [settings, setSettings] = useState<any | null>(null)
+  const { theme } = useTheme()
   const apiOrigin = useMemo(
     () => (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/api\/?$/, ''),
     []
@@ -38,6 +42,16 @@ export function SetupProvider({ children }: { children: React.ReactNode }) {
     let mounted = true
     const bootstrap = async () => {
       try {
+        if (typeof window !== 'undefined') {
+          const cached = localStorage.getItem('lms-public-settings')
+          if (cached && !settings) {
+            try {
+              setSettings(JSON.parse(cached))
+            } catch {
+              // ignore cache parse errors
+            }
+          }
+        }
         const [statusRes, settingsRes] = await Promise.all([
           api.getSetupStatus(),
           api.getPublicSetupSettings()
@@ -46,55 +60,62 @@ export function SetupProvider({ children }: { children: React.ReactNode }) {
 
         const isCompleted = Boolean(statusRes?.data?.completed)
         setCompleted(isCompleted)
-        setSettings(settingsRes?.data || null)
+        const nextSettings = settingsRes?.data || null
+        setSettings(nextSettings)
+        if (typeof window !== 'undefined' && nextSettings) {
+          localStorage.setItem('lms-public-settings', JSON.stringify(nextSettings))
+        }
 
         const branding = settingsRes?.data?.branding || {}
         const dashboardTheme = settingsRes?.data?.dashboardTheme || {}
         if (typeof document !== 'undefined') {
-          if (branding?.primaryColor) {
-            document.documentElement.style.setProperty('--color-primary', branding.primaryColor)
+          const root = document.documentElement.style
+          const applyVar = (name: string, value?: string | null) => {
+            const resolved = String(value || '').trim()
+            if (resolved) {
+              root.setProperty(name, resolved)
+            } else {
+              root.removeProperty(name)
+            }
           }
-          if (branding?.accentColor) {
-            document.documentElement.style.setProperty('--color-accent', branding.accentColor)
-          }
-          if (dashboardTheme?.backgroundColor) {
-            document.documentElement.style.setProperty('--color-background', dashboardTheme.backgroundColor)
-          }
-          if (dashboardTheme?.surfaceColor) {
-            document.documentElement.style.setProperty('--color-surface', dashboardTheme.surfaceColor)
-          }
-          if (dashboardTheme?.cardBackground) {
-            document.documentElement.style.setProperty('--color-card', dashboardTheme.cardBackground)
-          }
-          if (dashboardTheme?.cardBorder) {
-            document.documentElement.style.setProperty('--color-card-border', dashboardTheme.cardBorder)
-          }
-          if (dashboardTheme?.sidebarColor) {
-            document.documentElement.style.setProperty('--color-sidebar', dashboardTheme.sidebarColor)
-          }
-          if (dashboardTheme?.sidebarTextColor) {
-            document.documentElement.style.setProperty('--color-sidebar-text', dashboardTheme.sidebarTextColor)
-          }
-          if (dashboardTheme?.textColor) {
-            document.documentElement.style.setProperty('--color-text', dashboardTheme.textColor)
-          }
-          if (dashboardTheme?.primaryColor) {
-            document.documentElement.style.setProperty('--color-primary', dashboardTheme.primaryColor)
-          }
-          if (dashboardTheme?.accentColor) {
-            document.documentElement.style.setProperty('--color-accent', dashboardTheme.accentColor)
-          }
-          if (dashboardTheme?.modalBackground) {
-            document.documentElement.style.setProperty('--color-modal', dashboardTheme.modalBackground)
-          }
-          if (dashboardTheme?.modalTextColor) {
-            document.documentElement.style.setProperty('--color-modal-text', dashboardTheme.modalTextColor)
-          }
-          if (dashboardTheme?.toastBackground) {
-            document.documentElement.style.setProperty('--color-toast', dashboardTheme.toastBackground)
-          }
-          if (dashboardTheme?.toastTextColor) {
-            document.documentElement.style.setProperty('--color-toast-text', dashboardTheme.toastTextColor)
+
+          if (theme === 'system') {
+            if (branding?.primaryColor) {
+              root.setProperty('--color-primary', branding.primaryColor)
+            }
+            if (branding?.accentColor) {
+              root.setProperty('--color-accent', branding.accentColor)
+            }
+            applyVar('--color-background', dashboardTheme?.backgroundColor)
+            applyVar('--color-surface', dashboardTheme?.surfaceColor)
+            applyVar('--color-card', dashboardTheme?.cardBackground)
+            applyVar('--color-card-border', dashboardTheme?.cardBorder)
+            applyVar('--color-sidebar', dashboardTheme?.sidebarColor)
+            applyVar('--color-sidebar-text', dashboardTheme?.sidebarTextColor)
+            applyVar('--color-sidebar-active', dashboardTheme?.sidebarActiveColor)
+            applyVar('--color-text', dashboardTheme?.textColor)
+            applyVar('--color-primary', dashboardTheme?.primaryColor || branding?.primaryColor)
+            applyVar('--color-accent', dashboardTheme?.accentColor || branding?.accentColor)
+            applyVar('--color-modal', dashboardTheme?.modalBackground)
+            applyVar('--color-modal-text', dashboardTheme?.modalTextColor)
+            applyVar('--color-toast', dashboardTheme?.toastBackground)
+            applyVar('--color-toast-text', dashboardTheme?.toastTextColor)
+          } else {
+            // Clear all dashboard/theme overrides for light/dark modes
+            applyVar('--color-background', null)
+            applyVar('--color-surface', null)
+            applyVar('--color-card', null)
+            applyVar('--color-card-border', null)
+            applyVar('--color-sidebar', null)
+            applyVar('--color-sidebar-text', null)
+            applyVar('--color-sidebar-active', null)
+            applyVar('--color-text', null)
+            applyVar('--color-primary', null)
+            applyVar('--color-accent', null)
+            applyVar('--color-modal', null)
+            applyVar('--color-modal-text', null)
+            applyVar('--color-toast', null)
+            applyVar('--color-toast-text', null)
           }
         }
 
@@ -117,6 +138,59 @@ export function SetupProvider({ children }: { children: React.ReactNode }) {
       mounted = false
     }
   }, [pathname, router])
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    const branding = settings?.branding || {}
+    const dashboardTheme = settings?.dashboardTheme || {}
+    const root = document.documentElement.style
+    const applyVar = (name: string, value?: string | null) => {
+      const resolved = String(value || '').trim()
+      if (resolved) {
+        root.setProperty(name, resolved)
+      } else {
+        root.removeProperty(name)
+      }
+    }
+
+    if (theme === 'system') {
+      if (branding?.primaryColor) {
+        root.setProperty('--color-primary', branding.primaryColor)
+      }
+      if (branding?.accentColor) {
+        root.setProperty('--color-accent', branding.accentColor)
+      }
+      applyVar('--color-background', dashboardTheme?.backgroundColor)
+      applyVar('--color-surface', dashboardTheme?.surfaceColor)
+      applyVar('--color-card', dashboardTheme?.cardBackground)
+      applyVar('--color-card-border', dashboardTheme?.cardBorder)
+      applyVar('--color-sidebar', dashboardTheme?.sidebarColor)
+      applyVar('--color-sidebar-text', dashboardTheme?.sidebarTextColor)
+      applyVar('--color-sidebar-active', dashboardTheme?.sidebarActiveColor)
+      applyVar('--color-text', dashboardTheme?.textColor)
+      applyVar('--color-primary', dashboardTheme?.primaryColor || branding?.primaryColor)
+      applyVar('--color-accent', dashboardTheme?.accentColor || branding?.accentColor)
+      applyVar('--color-modal', dashboardTheme?.modalBackground)
+      applyVar('--color-modal-text', dashboardTheme?.modalTextColor)
+      applyVar('--color-toast', dashboardTheme?.toastBackground)
+      applyVar('--color-toast-text', dashboardTheme?.toastTextColor)
+    } else {
+      applyVar('--color-background', null)
+      applyVar('--color-surface', null)
+      applyVar('--color-card', null)
+      applyVar('--color-card-border', null)
+      applyVar('--color-sidebar', null)
+      applyVar('--color-sidebar-text', null)
+      applyVar('--color-sidebar-active', null)
+      applyVar('--color-text', null)
+      applyVar('--color-primary', null)
+      applyVar('--color-accent', null)
+      applyVar('--color-modal', null)
+      applyVar('--color-modal-text', null)
+      applyVar('--color-toast', null)
+      applyVar('--color-toast-text', null)
+    }
+  }, [theme, settings])
 
   const branding = useMemo<BrandingConfig>(() => {
     const raw = settings?.branding || {}
@@ -147,7 +221,10 @@ export function SetupProvider({ children }: { children: React.ReactNode }) {
       faviconUrl,
       primaryColor: String(raw.primaryColor || '#2563EB').trim(),
       accentColor: String(raw.accentColor || '#0EA5E9').trim(),
-      whiteLabelEnabled: Boolean(raw.whiteLabelEnabled)
+      whiteLabelEnabled: Boolean(raw.whiteLabelEnabled),
+      showCoderCrafterWatermark: typeof raw.showCoderCrafterWatermark === 'boolean'
+        ? raw.showCoderCrafterWatermark
+        : undefined
     }
   }, [apiOrigin, settings])
 
@@ -168,7 +245,21 @@ export function SetupProvider({ children }: { children: React.ReactNode }) {
   }, [branding])
 
   const value = useMemo(
-    () => ({ completed, loading, settings, branding }),
+    () => ({
+      completed,
+      loading,
+      settings,
+      branding,
+      updateBranding: (next: Partial<BrandingConfig>) => {
+        setSettings((prev: any) => ({
+          ...(prev || {}),
+          branding: {
+            ...(prev?.branding || {}),
+            ...next
+          }
+        }))
+      }
+    }),
     [completed, loading, settings, branding]
   )
 

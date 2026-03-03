@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Brush, LayoutPanelTop, Palette, ArrowRight } from 'lucide-react'
+import { Brush, LayoutPanelTop, Palette, ArrowRight, Image as ImageIcon } from 'lucide-react'
 
 export default function AppearanceHubPage() {
   return (
@@ -19,6 +19,27 @@ export default function AppearanceHubPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
+        <Link
+          href="/dashboard/appearance/branding"
+          className="rounded-2xl border p-6 transition-all hover:shadow-lg"
+          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+        >
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'rgba(59, 130, 246, 0.15)' }}>
+              <ImageIcon className="h-5 w-5" style={{ color: 'rgb(59, 130, 246)' }} />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold" style={{ color: 'var(--color-text)' }}>Branding</h2>
+              <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                Update institute name, logo, and brand assets.
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 inline-flex items-center gap-2 text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
+            Open branding settings <ArrowRight className="h-4 w-4" />
+          </div>
+        </Link>
+
         <Link
           href="/dashboard/appearance/homepage"
           className="rounded-2xl border p-6 transition-all hover:shadow-lg"

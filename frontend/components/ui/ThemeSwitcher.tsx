@@ -70,6 +70,26 @@ export function ThemeSwitcher() {
                 )}
               </button>
             ))}
+            <div className="border-t" style={{ borderColor: 'var(--color-border)' }} />
+            <button
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  localStorage.removeItem('lms-theme')
+                }
+                setTheme('system')
+                setIsOpen(false)
+              }}
+              className="w-full px-3 py-2 text-left flex items-center gap-2 transition-colors text-xs"
+              style={{ color: 'var(--color-text-secondary)' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--color-secondary-hover)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent'
+              }}
+            >
+              Reset to System
+            </button>
           </div>
         </>
       )}

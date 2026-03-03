@@ -200,6 +200,64 @@ router.put('/landing-page', async (req, res) => {
 });
 
 /**
+ * @route   GET /api/admin/branding
+ * @desc    Get branding settings
+ * @access  Admin
+ */
+router.get('/branding', async (req, res, next) => {
+  try {
+    const setupSettings = await systemSettingsStore.getSetupSettings();
+    res.json({
+      success: true,
+      settings: setupSettings?.branding || {}
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * @route   PUT /api/admin/branding
+ * @desc    Update branding settings
+ * @access  Admin
+ */
+router.put('/branding', async (req, res) => {
+  try {
+    const payload = req.body || {};
+    const setupSettings = await systemSettingsStore.getSetupSettings();
+    const current = setupSettings?.branding || {};
+    const whiteLabelEnabled = typeof payload?.whiteLabelEnabled === 'boolean'
+      ? Boolean(payload.whiteLabelEnabled)
+      : Boolean(current.whiteLabelEnabled)
+    const nextBranding = {
+      ...current,
+      ...payload,
+      appName: String(payload?.appName || current.appName || 'Institute LMS').trim(),
+      logoUrl: String(payload?.logoUrl || current.logoUrl || '').trim(),
+      faviconUrl: String(payload?.faviconUrl || payload?.logoUrl || current.faviconUrl || current.logoUrl || '').trim(),
+      primaryColor: String(payload?.primaryColor || current.primaryColor || '#2563EB').trim(),
+      accentColor: String(payload?.accentColor || current.accentColor || '#0EA5E9').trim(),
+      whiteLabelEnabled,
+      showCoderCrafterWatermark: !whiteLabelEnabled
+    };
+
+    const updated = await systemSettingsStore.updateSetupSettings({
+      branding: nextBranding
+    });
+    res.json({
+      success: true,
+      message: 'Branding updated',
+      settings: updated.branding || {}
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to update branding'
+    });
+  }
+});
+
+/**
  * @route   GET /api/admin/dashboard-theme
  * @desc    Get dashboard theme overrides
  * @access  Admin

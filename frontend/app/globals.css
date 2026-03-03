@@ -850,6 +850,13 @@ html, body {
   overflow: hidden;
 }
 
+html.landing-scroll,
+body.landing-scroll {
+  height: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
 /* Hide scrollbar but keep scroll */
 .scrollbar-hidden::-webkit-scrollbar {
   display: none;

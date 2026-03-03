@@ -189,8 +189,7 @@ class SetupService {
         primaryColor: String(payload?.branding?.primaryColor || '#2563EB').trim(),
         accentColor: String(payload?.branding?.accentColor || '#0EA5E9').trim(),
         whiteLabelEnabled: Boolean(payload?.branding?.whiteLabelEnabled),
-        // Always keep brand watermark enabled.
-        showCoderCrafterWatermark: true
+        showCoderCrafterWatermark: !Boolean(payload?.branding?.whiteLabelEnabled)
       },
       defaults: {
         timezone,

@@ -163,9 +163,9 @@ export default function DashboardLayout({
                       href={item.href}
                       className="flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors"
                       style={{
-                        color: isActive ? 'var(--color-primary)' : 'var(--color-sidebar-text, var(--color-text))',
+                        color: isActive ? 'var(--color-sidebar-active, var(--color-primary))' : 'var(--color-sidebar-text, var(--color-text))',
                         backgroundColor: isActive ? 'var(--color-primary-light)' : 'transparent',
-                        borderLeft: isActive ? '3px solid var(--color-primary)' : '3px solid transparent'
+                        borderLeft: isActive ? '3px solid var(--color-sidebar-active, var(--color-primary))' : '3px solid transparent'
                       }}
                       onMouseEnter={(e) => {
                         if (!isActive) {
@@ -181,7 +181,7 @@ export default function DashboardLayout({
                     >
                       <span
                         className="mr-3"
-                        style={{ color: isActive ? 'var(--color-primary)' : 'var(--color-sidebar-text, var(--color-text-secondary))' }}
+                        style={{ color: isActive ? 'var(--color-sidebar-active, var(--color-primary))' : 'var(--color-sidebar-text, var(--color-text-secondary))' }}
                       >
                         {item.icon}
                       </span>
@@ -246,9 +246,9 @@ export default function DashboardLayout({
                     href={item.href}
                   className="flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors"
                   style={{
-                    color: isActive ? 'var(--color-primary)' : 'var(--color-sidebar-text, var(--color-text))',
+                    color: isActive ? 'var(--color-sidebar-active, var(--color-primary))' : 'var(--color-sidebar-text, var(--color-text))',
                     backgroundColor: isActive ? 'var(--color-primary-light)' : 'transparent',
-                    borderLeft: isActive ? '3px solid var(--color-primary)' : '3px solid transparent'
+                    borderLeft: isActive ? '3px solid var(--color-sidebar-active, var(--color-primary))' : '3px solid transparent'
                   }}
                     onMouseEnter={(e) => {
                       if (!isActive) {
@@ -263,7 +263,7 @@ export default function DashboardLayout({
                   >
                     <span
                       className="mr-3"
-                      style={{ color: isActive ? 'var(--color-primary)' : 'var(--color-sidebar-text, var(--color-text-secondary))' }}
+                      style={{ color: isActive ? 'var(--color-sidebar-active, var(--color-primary))' : 'var(--color-sidebar-text, var(--color-text-secondary))' }}
                     >
                       {item.icon}
                     </span>

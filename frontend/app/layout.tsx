@@ -1,5 +1,4 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
 import './globals.css'
 import { ThemeProvider } from '../components/providers/ThemeProvider'
 import { AuthProvider } from '../components/providers/AuthProvider'
@@ -8,8 +7,6 @@ import { ClassContextProvider } from '@/lib/contexts/ClassContext'
 import { SetupProvider } from '@/components/providers/SetupProvider'
 import BrandWatermark from '@/components/BrandWatermark'
 import DomainRedirect from '@/components/DomainRedirect'
-
-const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'LMS Platform',
@@ -44,7 +41,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={inter.className} style={{ backgroundColor: 'var(--color-background)' }}>
+      <body style={{ backgroundColor: 'var(--color-background)' }}>
         <noscript>
           <iframe
             src="https://www.googletagmanager.com/ns.html?id=GTM-WCWBRQPH"

@@ -229,7 +229,7 @@ router.get('/public-settings', async (req, res, next) => {
         completed: status.completed,
         watermark: {
           text: 'Powered by CoderCrafter',
-          forceVisible: true
+          forceVisible: Boolean(setupSettings?.branding?.showCoderCrafterWatermark)
         }
       }
     });
@@ -253,6 +253,15 @@ router.post(
     const faviconUrl = favicon
       ? `/uploads/setup-branding/${favicon.filename}`
       : (logoUrl || '');
+
+    if (logoUrl || faviconUrl) {
+      await systemSettingsStore.updateSetupSettings({
+        branding: {
+          logoUrl: logoUrl || undefined,
+          faviconUrl: faviconUrl || undefined
+        }
+      });
+    }
 
     return res.status(201).json({
       success: true,

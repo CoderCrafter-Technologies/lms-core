@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '../../../components/providers/AuthProvider'
 import { useSetup } from '../../../components/providers/SetupProvider'
+import { useTheme } from '@/components/providers/ThemeProvider'
 import { Spinner } from '../../../components/ui/Spinner'
 import { toast } from 'react-hot-toast'
 import logo from "@/assets/logo_blue.png"
@@ -16,10 +17,14 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   
   const { login } = useAuth()
-  const { branding } = useSetup()
+  const { branding, settings } = useSetup()
+  const { theme } = useTheme()
   const router = useRouter()
   const appName = branding?.appName || 'Institute LMS'
   const brandLogo = branding?.logoUrl || logo.src
+  const landingStyles = settings?.publicLanding?.styles || {}
+  const allowCustomStyles = theme === 'system'
+  const resolveThemeColor = (value: string, fallback: string) => (allowCustomStyles && value?.trim() ? value : fallback)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -54,7 +59,10 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
+    <div
+      className="min-h-screen flex items-center justify-center bg-white dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8"
+      style={{ backgroundColor: resolveThemeColor(landingStyles.pageBackground, undefined) }}
+    >
       <div className="max-w-md w-full border border-gray-200 px-6 py-10 rounded-xl shadow-lg space-y-8">
         <div>
           <Link href="/" className="flex justify-center">
@@ -119,7 +127,8 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="bg-[#0070DC] text-white rounded-md w-full py-2 text-base"
+              className="text-white rounded-md w-full py-2 text-base"
+              style={{ backgroundColor: resolveThemeColor(landingStyles.primaryColor, '#0070DC') }}
             >
               {loading ? (
                 <>

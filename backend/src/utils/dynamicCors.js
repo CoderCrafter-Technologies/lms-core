@@ -2,7 +2,16 @@ const systemSettingsStore = require('../services/systemSettingsStore');
 
 const DEFAULT_TTL_MS = 30000;
 
-const normalizeOrigin = (origin = '') => String(origin || '').trim().replace(/\/$/, '');
+const normalizeOrigin = (origin = '') => {
+  const raw = String(origin || '').trim();
+  if (!raw) return '';
+  try {
+    const parsed = new URL(raw);
+    return `${parsed.protocol.toLowerCase()}//${parsed.host.toLowerCase()}`;
+  } catch {
+    return raw.replace(/\/$/, '').toLowerCase();
+  }
+};
 
 const normalizeDomain = (value = '') => {
   const raw = String(value || '').trim().toLowerCase();
@@ -116,14 +125,29 @@ const ensureFreshCache = () => {
   }
 };
 
-const corsOptions = {
-  origin: (origin, callback) => {
-    ensureFreshCache();
+const evaluateOrigin = (origin, callback) => {
+  const runCheck = () => {
     if (isOriginAllowed(origin)) {
       callback(null, true);
       return;
     }
     callback(new Error('Not allowed by CORS'));
+  };
+
+  if (Date.now() > cache.expiresAt || cache.refreshing) {
+    refreshAllowedOrigins()
+      .catch(() => null)
+      .finally(runCheck);
+    return;
+  }
+
+  runCheck();
+};
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    ensureFreshCache();
+    evaluateOrigin(origin, callback);
   },
   credentials: true
 };
@@ -131,11 +155,7 @@ const corsOptions = {
 const socketCorsOptions = {
   origin: (origin, callback) => {
     ensureFreshCache();
-    if (isOriginAllowed(origin)) {
-      callback(null, true);
-      return;
-    }
-    callback(new Error('Not allowed by CORS'));
+    evaluateOrigin(origin, callback);
   },
   credentials: true
 };

@@ -12,6 +12,7 @@ const { setupService } = require('../services/setupService');
 const systemSettingsStore = require('../services/systemSettingsStore');
 const { smtpService } = require('../services/smtpService');
 const { requestJson } = require('../utils/httpJson');
+const dynamicCors = require('../utils/dynamicCors');
 
 const router = express.Router();
 const setupBrandingUploadPath = path.join(__dirname, '../../uploads/setup-branding');
@@ -726,7 +727,24 @@ router.post('/complete', completeSetupValidation, async (req, res, next) => {
       });
     }
 
-    const status = await setupService.completeSetup(req.body || {});
+    const payload = { ...(req.body || {}) };
+    const existingInstitute = payload.institute && typeof payload.institute === 'object'
+      ? payload.institute
+      : {};
+    const forwardedHost = String(req.headers['x-forwarded-host'] || '').split(',')[0].trim();
+    const requestHost = forwardedHost || String(req.headers.host || '').trim();
+    const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim().toLowerCase();
+    const protocol = forwardedProto || req.protocol || 'https';
+    const inferredWebsite = requestHost ? `${protocol}://${requestHost}` : '';
+    if (!String(existingInstitute.website || '').trim() && inferredWebsite) {
+      payload.institute = {
+        ...existingInstitute,
+        website: inferredWebsite
+      };
+    }
+
+    const status = await setupService.completeSetup(payload);
+    await dynamicCors.refreshAllowedOrigins();
     return res.status(201).json({
       success: true,
       message: 'Setup completed successfully',

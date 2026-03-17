@@ -55,26 +55,7 @@ export default function BrandingAppearancePage() {
       const logoUrl = response?.data?.logoUrl || response?.settings?.logoUrl || response?.logoUrl || ''
       if (logoUrl) {
         setDraft((prev) => ({ ...prev, logoUrl }))
-        const payload = {
-          appName: draft.appName.trim() || 'Institute LMS',
-          logoUrl,
-          faviconUrl: logoUrl
-        }
-        const savedResponse = await api.updateBrandingSettings(payload)
-        const saved = savedResponse?.settings || savedResponse?.data || payload
-        updateBranding({
-          appName: saved.appName || payload.appName,
-          logoUrl: saved.logoUrl || payload.logoUrl,
-          faviconUrl: saved.faviconUrl || payload.faviconUrl
-        })
-        updateSetupSettings({
-          branding: {
-            appName: saved.appName || payload.appName,
-            logoUrl: saved.logoUrl || payload.logoUrl,
-            faviconUrl: saved.faviconUrl || payload.faviconUrl
-          }
-        })
-        await refreshSettings()
+        setStatus({ type: 'success', message: 'Logo uploaded. Click "Save Branding" to apply.' })
       }
     } catch (error: any) {
       setStatus({ type: 'error', message: error?.message || 'Failed to upload logo.' })

@@ -174,6 +174,18 @@ const colorFieldFallbacks: Partial<Record<ThemeField, string>> = {
   toastTextColor: '#F9FAFB'
 }
 
+const fontOptions = [
+  'Inter, system-ui, sans-serif',
+  'Poppins, system-ui, sans-serif',
+  'Manrope, system-ui, sans-serif',
+  'Plus Jakarta Sans, system-ui, sans-serif',
+  'DM Sans, system-ui, sans-serif',
+  'Roboto, system-ui, sans-serif',
+  'Source Sans 3, system-ui, sans-serif',
+  'Merriweather, Georgia, serif',
+  'IBM Plex Sans, system-ui, sans-serif'
+]
+
 export default function DashboardAppearancePage() {
   const [theme, setTheme] = useState<DashboardTheme>(defaultTheme)
   const [loading, setLoading] = useState(true)
@@ -405,10 +417,17 @@ export default function DashboardAppearancePage() {
   const ColorInput = ({ label, field }: { label: string; field: ThemeField }) => (
     <label className="block text-xs font-medium" style={{ color: 'var(--color-text-secondary)' }}>
       {label}
-      <div className="mt-1 flex gap-2">
+      <div className="mt-1 flex items-center gap-2 rounded-xl border px-2 py-2" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+        <span
+          className="inline-block h-5 w-5 rounded-full border shadow-sm"
+          style={{
+            borderColor: 'var(--color-border)',
+            background: String(theme[field] || colorFieldFallbacks[field] || '#000000')
+          }}
+        />
         <input
           type="color"
-          className="h-9 w-12 rounded-lg border"
+          className="h-8 w-10 cursor-pointer rounded-lg border"
           value={(() => {
             const raw = String(theme[field] || colorFieldFallbacks[field] || '#000000').trim()
             return /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(raw) ? raw : '#000000'
@@ -417,7 +436,7 @@ export default function DashboardAppearancePage() {
         />
         <input
           type="text"
-          className="h-9 flex-1 rounded-lg border px-2 text-xs"
+          className="h-8 flex-1 rounded-lg border px-2 text-xs"
           style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-background)', color: 'var(--color-text)' }}
           value={String(theme[field] || '')}
           placeholder={String(colorFieldFallbacks[field] || '#000000')}
@@ -466,12 +485,19 @@ export default function DashboardAppearancePage() {
             <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Typography</h2>
             <label className="block text-xs font-medium" style={{ color: 'var(--color-text-secondary)' }}>
               Font Family
-              <input
+              <select
                 className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
                 style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-background)', color: 'var(--color-text)' }}
                 value={theme.fontFamily}
                 onChange={(event) => updateField('fontFamily', event.target.value)}
-              />
+              >
+                {fontOptions.map((font) => (
+                  <option key={font} value={font}>{font.split(',')[0]}</option>
+                ))}
+                {!fontOptions.includes(theme.fontFamily) && (
+                  <option value={theme.fontFamily}>{theme.fontFamily.split(',')[0]}</option>
+                )}
+              </select>
             </label>
             <div className="grid gap-3 grid-cols-2">
               <label className="block text-xs font-medium" style={{ color: 'var(--color-text-secondary)' }}>

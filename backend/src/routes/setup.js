@@ -264,25 +264,13 @@ router.post(
       ? `/uploads/setup-branding/${favicon.filename}`
       : (logoUrl || '');
 
-    let brandingSettings = null;
-    if (logoUrl || faviconUrl) {
-      const updated = await systemSettingsStore.updateSetupSettings({
-        branding: {
-          logoUrl: logoUrl || undefined,
-          faviconUrl: faviconUrl || undefined
-        }
-      });
-      brandingSettings = updated?.branding || null;
-    }
-
     return res.status(201).json({
       success: true,
       message: 'Brand assets uploaded successfully',
       data: {
         logoUrl,
         faviconUrl
-      },
-      settings: brandingSettings
+      }
     });
   }
 );

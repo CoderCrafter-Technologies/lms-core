@@ -34,13 +34,47 @@ export default function DashboardLayout({
     ...(dashboardTheme?.baseFontSize ? { fontSize: `${dashboardTheme.baseFontSize}px` } : {}),
     ...(dashboardTheme?.backgroundColor ? { ['--color-background' as any]: dashboardTheme.backgroundColor } : {}),
     ...(dashboardTheme?.surfaceColor ? { ['--color-surface' as any]: dashboardTheme.surfaceColor } : {}),
+    ...(dashboardTheme?.surfaceHoverColor ? { ['--color-surface-hover' as any]: dashboardTheme.surfaceHoverColor } : {}),
+    ...(dashboardTheme?.borderColor ? { ['--color-border' as any]: dashboardTheme.borderColor } : {}),
     ...(dashboardTheme?.cardBackground ? { ['--color-card' as any]: dashboardTheme.cardBackground } : {}),
     ...(dashboardTheme?.cardBorder ? { ['--color-card-border' as any]: dashboardTheme.cardBorder } : {}),
     ...(dashboardTheme?.sidebarColor ? { ['--color-sidebar' as any]: dashboardTheme.sidebarColor } : {}),
     ...(dashboardTheme?.sidebarTextColor ? { ['--color-sidebar-text' as any]: dashboardTheme.sidebarTextColor } : {}),
+    ...(dashboardTheme?.sidebarBorderColor ? { ['--color-sidebar-border' as any]: dashboardTheme.sidebarBorderColor } : {}),
+    ...(dashboardTheme?.sidebarHoverColor ? { ['--color-sidebar-hover' as any]: dashboardTheme.sidebarHoverColor } : {}),
+    ...(dashboardTheme?.sidebarActiveBackground ? { ['--color-sidebar-active-bg' as any]: dashboardTheme.sidebarActiveBackground } : {}),
     ...(dashboardTheme?.textColor ? { ['--color-text' as any]: dashboardTheme.textColor } : {}),
+    ...(dashboardTheme?.secondaryTextColor ? { ['--color-text-secondary' as any]: dashboardTheme.secondaryTextColor } : {}),
+    ...(dashboardTheme?.textTertiaryColor ? { ['--color-text-tertiary' as any]: dashboardTheme.textTertiaryColor } : {}),
+    ...(dashboardTheme?.textMutedColor ? { ['--color-text-muted' as any]: dashboardTheme.textMutedColor } : {}),
     ...(dashboardTheme?.primaryColor ? { ['--color-primary' as any]: dashboardTheme.primaryColor } : {}),
+    ...(dashboardTheme?.primaryHoverColor ? { ['--color-primary-hover' as any]: dashboardTheme.primaryHoverColor } : {}),
+    ...(dashboardTheme?.primaryLightColor ? { ['--color-primary-light' as any]: dashboardTheme.primaryLightColor } : {}),
     ...(dashboardTheme?.accentColor ? { ['--color-accent' as any]: dashboardTheme.accentColor } : {}),
+    ...(dashboardTheme?.buttonTextColor ? { ['--color-btn-primary-text' as any]: dashboardTheme.buttonTextColor } : {}),
+    ...(dashboardTheme?.secondaryColor ? { ['--color-secondary' as any]: dashboardTheme.secondaryColor } : {}),
+    ...(dashboardTheme?.secondaryHoverColor ? { ['--color-secondary-hover' as any]: dashboardTheme.secondaryHoverColor } : {}),
+    ...(dashboardTheme?.secondaryActiveColor ? { ['--color-secondary-active' as any]: dashboardTheme.secondaryActiveColor } : {}),
+    ...(dashboardTheme?.borderHoverColor ? { ['--color-border-hover' as any]: dashboardTheme.borderHoverColor } : {}),
+    ...(dashboardTheme?.focusRingColor ? { ['--color-focus-ring' as any]: dashboardTheme.focusRingColor } : {}),
+    ...(dashboardTheme?.successColor ? { ['--color-success' as any]: dashboardTheme.successColor } : {}),
+    ...(dashboardTheme?.successLightColor ? { ['--color-success-light' as any]: dashboardTheme.successLightColor } : {}),
+    ...(dashboardTheme?.warningColor ? { ['--color-warning' as any]: dashboardTheme.warningColor } : {}),
+    ...(dashboardTheme?.warningLightColor ? { ['--color-warning-light' as any]: dashboardTheme.warningLightColor } : {}),
+    ...(dashboardTheme?.errorColor ? { ['--color-error' as any]: dashboardTheme.errorColor } : {}),
+    ...(dashboardTheme?.errorLightColor ? { ['--color-error-light' as any]: dashboardTheme.errorLightColor } : {}),
+    ...(dashboardTheme?.infoColor ? { ['--color-info' as any]: dashboardTheme.infoColor } : {}),
+    ...(dashboardTheme?.infoLightColor ? { ['--color-info-light' as any]: dashboardTheme.infoLightColor } : {}),
+    ...(dashboardTheme?.badgeBlueBg ? { ['--color-badge-blue-bg' as any]: dashboardTheme.badgeBlueBg } : {}),
+    ...(dashboardTheme?.badgeBlueText ? { ['--color-badge-blue-text' as any]: dashboardTheme.badgeBlueText } : {}),
+    ...(dashboardTheme?.badgeGreenBg ? { ['--color-badge-green-bg' as any]: dashboardTheme.badgeGreenBg } : {}),
+    ...(dashboardTheme?.badgeGreenText ? { ['--color-badge-green-text' as any]: dashboardTheme.badgeGreenText } : {}),
+    ...(dashboardTheme?.badgePurpleBg ? { ['--color-badge-purple-bg' as any]: dashboardTheme.badgePurpleBg } : {}),
+    ...(dashboardTheme?.badgePurpleText ? { ['--color-badge-purple-text' as any]: dashboardTheme.badgePurpleText } : {}),
+    ...(dashboardTheme?.badgeYellowBg ? { ['--color-badge-yellow-bg' as any]: dashboardTheme.badgeYellowBg } : {}),
+    ...(dashboardTheme?.badgeYellowText ? { ['--color-badge-yellow-text' as any]: dashboardTheme.badgeYellowText } : {}),
+    ...(dashboardTheme?.badgeRedBg ? { ['--color-badge-red-bg' as any]: dashboardTheme.badgeRedBg } : {}),
+    ...(dashboardTheme?.badgeRedText ? { ['--color-badge-red-text' as any]: dashboardTheme.badgeRedText } : {}),
     ...(dashboardTheme?.modalBackground ? { ['--color-modal' as any]: dashboardTheme.modalBackground } : {}),
     ...(dashboardTheme?.modalTextColor ? { ['--color-modal-text' as any]: dashboardTheme.modalTextColor } : {}),
     ...(dashboardTheme?.toastBackground ? { ['--color-toast' as any]: dashboardTheme.toastBackground } : {}),
@@ -181,12 +215,12 @@ export default function DashboardLayout({
                       className="flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors"
                       style={{
                         color: isActive ? 'var(--color-sidebar-active, var(--color-primary))' : 'var(--color-sidebar-text, var(--color-text))',
-                        backgroundColor: isActive ? 'var(--color-primary-light)' : 'transparent',
+                        backgroundColor: isActive ? 'var(--color-sidebar-active-bg, var(--color-primary-light))' : 'transparent',
                         borderLeft: isActive ? '3px solid var(--color-sidebar-active, var(--color-primary))' : '3px solid transparent'
                       }}
                       onMouseEnter={(e) => {
                         if (!isActive) {
-                          e.currentTarget.style.backgroundColor = 'var(--color-surface-hover)'
+                          e.currentTarget.style.backgroundColor = 'var(--color-sidebar-hover, var(--color-surface-hover))'
                         }
                       }}
                       onMouseLeave={(e) => {
@@ -214,7 +248,7 @@ export default function DashboardLayout({
                 className="w-full flex items-center gap-2 text-left px-3 py-2 text-sm rounded-md transition-colors"
                 style={{ color: 'var(--color-sidebar-text, var(--color-text))' }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = 'var(--color-surface-hover)'
+                  e.currentTarget.style.backgroundColor = 'var(--color-sidebar-hover, var(--color-surface-hover))'
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.backgroundColor = 'transparent'
@@ -271,12 +305,12 @@ export default function DashboardLayout({
                   className="flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors"
                   style={{
                     color: isActive ? 'var(--color-sidebar-active, var(--color-primary))' : 'var(--color-sidebar-text, var(--color-text))',
-                    backgroundColor: isActive ? 'var(--color-primary-light)' : 'transparent',
+                    backgroundColor: isActive ? 'var(--color-sidebar-active-bg, var(--color-primary-light))' : 'transparent',
                     borderLeft: isActive ? '3px solid var(--color-sidebar-active, var(--color-primary))' : '3px solid transparent'
                   }}
                     onMouseEnter={(e) => {
                       if (!isActive) {
-                        e.currentTarget.style.backgroundColor = 'var(--color-surface-hover)'
+                        e.currentTarget.style.backgroundColor = 'var(--color-sidebar-hover, var(--color-surface-hover))'
                       }
                     }}
                     onMouseLeave={(e) => {
@@ -322,7 +356,7 @@ export default function DashboardLayout({
               className="w-full flex gap-2 items-center text-left px-3 py-2 text-sm rounded-md transition-colors"
               style={{ color: 'var(--color-sidebar-text, var(--color-text))' }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'var(--color-surface-hover)'
+                e.currentTarget.style.backgroundColor = 'var(--color-sidebar-hover, var(--color-surface-hover))'
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.backgroundColor = 'transparent'

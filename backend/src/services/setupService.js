@@ -171,25 +171,45 @@ class SetupService {
     await ensureDefaultRoles();
     const adminUser = await ensureAdminUser(payload?.admin || {});
 
+    const existingInstitute = existingSetup?.institute || {};
+    const existingBranding = existingSetup?.branding || {};
+    const incomingInstitute = payload?.institute || {};
+    const incomingBranding = payload?.branding || {};
+    const instituteName = String(
+      incomingInstitute?.name || existingInstitute?.name || 'Institute'
+    ).trim();
+
     const nextSetup = {
       completed: true,
       completedAt: new Date().toISOString(),
       completedBy: adminUser._id.toString(),
       institute: {
-        name: String(payload?.institute?.name || 'Institute').trim(),
-        website: String(payload?.institute?.website || '').trim(),
-        supportEmail: String(payload?.institute?.supportEmail || '').trim(),
-        supportPhone: String(payload?.institute?.supportPhone || '').trim(),
-        address: String(payload?.institute?.address || '').trim()
+        name: instituteName,
+        website: String(incomingInstitute?.website || existingInstitute?.website || '').trim(),
+        supportEmail: String(incomingInstitute?.supportEmail || existingInstitute?.supportEmail || '').trim(),
+        supportPhone: String(incomingInstitute?.supportPhone || existingInstitute?.supportPhone || '').trim(),
+        address: String(incomingInstitute?.address || existingInstitute?.address || '').trim()
       },
       branding: {
-        appName: String(payload?.branding?.appName || 'Institute LMS').trim(),
-        logoUrl: String(payload?.branding?.logoUrl || '').trim(),
-        faviconUrl: String(payload?.branding?.faviconUrl || payload?.branding?.logoUrl || '').trim(),
-        primaryColor: String(payload?.branding?.primaryColor || '#2563EB').trim(),
-        accentColor: String(payload?.branding?.accentColor || '#0EA5E9').trim(),
-        whiteLabelEnabled: Boolean(payload?.branding?.whiteLabelEnabled),
-        showCoderCrafterWatermark: !Boolean(payload?.branding?.whiteLabelEnabled)
+        appName: String(
+          incomingBranding?.appName || existingBranding?.appName || instituteName || 'Institute LMS'
+        ).trim(),
+        logoUrl: String(incomingBranding?.logoUrl || existingBranding?.logoUrl || '').trim(),
+        faviconUrl: String(
+          incomingBranding?.faviconUrl
+          || incomingBranding?.logoUrl
+          || existingBranding?.faviconUrl
+          || existingBranding?.logoUrl
+          || ''
+        ).trim(),
+        primaryColor: String(incomingBranding?.primaryColor || existingBranding?.primaryColor || '#2563EB').trim(),
+        accentColor: String(incomingBranding?.accentColor || existingBranding?.accentColor || '#0EA5E9').trim(),
+        whiteLabelEnabled: typeof incomingBranding?.whiteLabelEnabled === 'boolean'
+          ? Boolean(incomingBranding.whiteLabelEnabled)
+          : Boolean(existingBranding?.whiteLabelEnabled),
+        showCoderCrafterWatermark: !(typeof incomingBranding?.whiteLabelEnabled === 'boolean'
+          ? Boolean(incomingBranding.whiteLabelEnabled)
+          : Boolean(existingBranding?.whiteLabelEnabled))
       },
       defaults: {
         timezone,

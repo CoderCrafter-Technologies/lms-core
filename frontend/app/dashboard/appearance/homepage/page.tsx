@@ -5,7 +5,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '@/lib/api'
 import { ChevronLeft, LayoutPanelTop, Plus, Save, Trash2 } from 'lucide-react'
 import Link from 'next/link'
-import logo from '@/assets/logo_blue.png'
 import { useSetup } from '@/components/providers/SetupProvider'
 import { useTheme } from '@/components/providers/ThemeProvider'
 
@@ -548,9 +547,7 @@ export default function HomepageAppearancePage() {
     }
   }
 
-
   const appName = branding?.appName || 'Institute LMS'
-  const brandLogo = branding?.logoUrl || logo.src
 
   const allowCustomStyles = theme === 'system'
   const resolveThemeColor = (value: string, fallback: string) => (allowCustomStyles ? resolveColor(value, fallback) : fallback)
@@ -1991,9 +1988,7 @@ export default function HomepageAppearancePage() {
           <header className="absolute inset-x-0 top-0 z-50">
             <nav className="flex items-center justify-between p-6 lg:px-8" aria-label="Global">
               <div className="flex lg:flex-1">
-                <Link href="/" className="-m-1.5 p-1.5 flex items-center gap-2">
-                  <img src={brandLogo} alt={`${appName} Logo`} className="h-10 w-auto object-contain" />
-                </Link>
+                <div className="-m-1.5 p-1.5" />
               </div>
               <div className="flex lg:flex-1 items-center lg:justify-end space-x-4">
                 <Link

@@ -10,6 +10,7 @@ import { NotificationCenterInner } from '@/components/NotificationCenter'
 import logo from "@/assets/logo_blue.png"
 import { Activity, Bell, BriefcaseBusiness, FileMinus, GraduationCap, LayoutGrid, LogOut, Menu, MessageCircleQuestionMark, Paintbrush, ScanLine, Settings, ShieldCheck, SquareKanban, TvMinimalPlay, Users, X } from 'lucide-react'
 import { ThemeSwitcher } from '@/components/ui/ThemeSwitcher'
+import { useTheme } from '@/components/providers/ThemeProvider'
 
 export default function DashboardLayout({
   children,
@@ -18,14 +19,17 @@ export default function DashboardLayout({
 }) {
   const { user, loading, logout } = useAuth()
   const { branding, settings } = useSetup()
+  const { theme } = useTheme()
   const router = useRouter()
   const pathname = usePathname()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [brandLogoFailed, setBrandLogoFailed] = useState(false)
+  const [useFallbackLogo, setUseFallbackLogo] = useState(false)
   const appName = branding?.appName || 'Institute LMS'
   const brandLogo = branding?.logoUrl || logo.src
+  const resolvedBrandLogo = useFallbackLogo ? logo.src : brandLogo
   const dashboardTheme = settings?.dashboardTheme || {}
-  const dashboardStyles = {
+  const dashboardStyles = theme === 'system' ? {
     ...(dashboardTheme?.fontFamily ? { fontFamily: dashboardTheme.fontFamily } : {}),
     ...(dashboardTheme?.baseFontSize ? { fontSize: `${dashboardTheme.baseFontSize}px` } : {}),
     ...(dashboardTheme?.backgroundColor ? { ['--color-background' as any]: dashboardTheme.backgroundColor } : {}),
@@ -41,7 +45,7 @@ export default function DashboardLayout({
     ...(dashboardTheme?.modalTextColor ? { ['--color-modal-text' as any]: dashboardTheme.modalTextColor } : {}),
     ...(dashboardTheme?.toastBackground ? { ['--color-toast' as any]: dashboardTheme.toastBackground } : {}),
     ...(dashboardTheme?.toastTextColor ? { ['--color-toast-text' as any]: dashboardTheme.toastTextColor } : {}),
-  }
+  } : {}
 
   const isActiveRoute = (href: string) => {
     if (!pathname) return false
@@ -54,6 +58,11 @@ export default function DashboardLayout({
       router.push('/auth/login')
     }
   }, [user, loading, router])
+
+  useEffect(() => {
+    setUseFallbackLogo(false)
+    setBrandLogoFailed(false)
+  }, [brandLogo])
 
   if (loading) {
     return (
@@ -117,11 +126,12 @@ export default function DashboardLayout({
       ? [{ name: 'Certifications', href: '/dashboard/certifications', icon: <ShieldCheck className="w-5 h-5" /> }]
       : []
     ),
-    { name: 'Settings', href: '/dashboard/settings', icon: <Settings className="w-5 h-5" /> },
-    ...(user.role.name === 'ADMIN'
+       ...(user.role.name === 'ADMIN'
       ? [{ name: 'Appearance', href: '/dashboard/appearance', icon: <Paintbrush className="w-5 h-5" /> }]
       : []
-    )
+    ),
+    { name: 'Settings', href: '/dashboard/settings', icon: <Settings className="w-5 h-5" /> },
+ 
   ]
 
   return (
@@ -138,13 +148,19 @@ export default function DashboardLayout({
             style={{ backgroundColor: 'var(--color-sidebar)' }}
           >
             <div className="flex items-center justify-between h-16 px-4 border-b" style={{ borderColor: 'var(--color-sidebar-border)', color: 'var(--color-sidebar-text, var(--color-text))' }}>
-              <Link href="/" className="flex items-center gap-2 min-w-0 max-w-[11rem]">
+              <Link href="/" prefetch={false} className="flex items-center gap-2 min-w-0 max-w-[11rem]">
                 {!brandLogoFailed && (
                   <img
-                    src={brandLogo}
+                    src={resolvedBrandLogo}
                     alt={`${appName} Logo`}
                     className="h-8 w-auto max-w-[7rem] object-contain shrink-0"
-                    onError={() => setBrandLogoFailed(true)}
+                    onError={() => {
+                      if (!useFallbackLogo) {
+                        setUseFallbackLogo(true)
+                      } else {
+                        setBrandLogoFailed(true)
+                      }
+                    }}
                   />
                 )}
                 <span className="text-sm font-semibold truncate" style={{ color: 'var(--color-sidebar-text, var(--color-text))' }}>{appName}</span>
@@ -161,6 +177,7 @@ export default function DashboardLayout({
                     <Link
                       key={item.name}
                       href={item.href}
+                      prefetch={false}
                       className="flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors"
                       style={{
                         color: isActive ? 'var(--color-sidebar-active, var(--color-primary))' : 'var(--color-sidebar-text, var(--color-text))',
@@ -220,13 +237,19 @@ export default function DashboardLayout({
           }}
         >
           <div className="flex items-center justify-between h-20 px-4 border-b flex-shrink-0" style={{ borderColor: 'var(--color-sidebar-border)', color: 'var(--color-sidebar-text, var(--color-text))' }}>
-            <Link href="/" className="flex items-center gap-3 min-w-0 pr-2">
+            <Link href="/" prefetch={false} className="flex items-center gap-3 min-w-0 pr-2">
               {!brandLogoFailed && (
                 <img
-                  src={brandLogo}
+                  src={resolvedBrandLogo}
                   alt={`${appName} Logo`}
                   className="h-12 w-auto max-w-[8.5rem] object-contain shrink-0"
-                  onError={() => setBrandLogoFailed(true)}
+                  onError={() => {
+                    if (!useFallbackLogo) {
+                      setUseFallbackLogo(true)
+                    } else {
+                      setBrandLogoFailed(true)
+                    }
+                  }}
                 />
               )}
               <span className="text-sm font-semibold truncate" style={{ color: 'var(--color-sidebar-text, var(--color-text))' }}>
@@ -244,6 +267,7 @@ export default function DashboardLayout({
                   <Link
                     key={item.name}
                     href={item.href}
+                    prefetch={false}
                   className="flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors"
                   style={{
                     color: isActive ? 'var(--color-sidebar-active, var(--color-primary))' : 'var(--color-sidebar-text, var(--color-text))',

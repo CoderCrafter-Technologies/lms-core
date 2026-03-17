@@ -8,10 +8,6 @@ compose_cmd() {
     echo "docker compose"
     return
   fi
-  if command -v docker-compose >/dev/null 2>&1; then
-    echo "docker-compose"
-    return
-  fi
   echo ""
 }
 

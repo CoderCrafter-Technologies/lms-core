@@ -247,7 +247,7 @@ export default function AdminDashboard() {
               <strong style={{ color: 'var(--color-warning)' }}>{loading ? '...' : support.urgentTickets}</strong>
             </div>
           </div>
-          <Link href="/dashboard/admin/support" className="inline-block mt-4 text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
+          <Link href="/dashboard/admin/support" prefetch={false} className="inline-block mt-4 text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
             Open ticket console
           </Link>
         </div>
@@ -276,7 +276,7 @@ export default function AdminDashboard() {
               </strong>
             </div>
           </div>
-          <Link href="/dashboard/monitoring" className="inline-flex items-center gap-1 mt-4 text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
+          <Link href="/dashboard/monitoring" prefetch={false} className="inline-flex items-center gap-1 mt-4 text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
             <Database className="w-4 h-4" />
             Open monitoring
           </Link>
@@ -287,19 +287,19 @@ export default function AdminDashboard() {
             Quick Actions
           </h2>
           <div className="space-y-2 text-sm">
-            <Link href="/dashboard/users" className="block" style={{ color: 'var(--color-primary)' }}>
+            <Link href="/dashboard/users" prefetch={false} className="block" style={{ color: 'var(--color-primary)' }}>
               Manage users and roles
             </Link>
-            <Link href="/dashboard/courses" className="block" style={{ color: 'var(--color-primary)' }}>
+            <Link href="/dashboard/courses" prefetch={false} className="block" style={{ color: 'var(--color-primary)' }}>
               Create/edit courses and batches
             </Link>
-            <Link href="/dashboard/live-classes" className="block" style={{ color: 'var(--color-primary)' }}>
+            <Link href="/dashboard/live-classes" prefetch={false} className="block" style={{ color: 'var(--color-primary)' }}>
               Review live class schedule
             </Link>
-            <Link href="/dashboard/notifications" className="block" style={{ color: 'var(--color-primary)' }}>
+            <Link href="/dashboard/notifications" prefetch={false} className="block" style={{ color: 'var(--color-primary)' }}>
               Send platform notifications
             </Link>
-            <Link href="/dashboard/settings" className="inline-flex items-center gap-1 block" style={{ color: 'var(--color-primary)' }}>
+            <Link href="/dashboard/settings" prefetch={false} className="inline-flex items-center gap-1 block" style={{ color: 'var(--color-primary)' }}>
               <Wrench className="w-4 h-4" />
               System and security settings
             </Link>
@@ -359,7 +359,7 @@ export default function AdminDashboard() {
               </div>
             ))}
           </div>
-          <Link href="/dashboard/admin/support" className="inline-block mt-4 text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
+          <Link href="/dashboard/admin/support" prefetch={false} className="inline-block mt-4 text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
             Go to all tickets
           </Link>
         </div>

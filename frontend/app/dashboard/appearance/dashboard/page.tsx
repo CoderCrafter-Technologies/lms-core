@@ -57,6 +57,7 @@ export default function DashboardAppearancePage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [brandLogoFailed, setBrandLogoFailed] = useState(false)
   const { theme: activeTheme } = useTheme()
   const { updateSetupSettings } = useSetup()
 
@@ -198,6 +199,18 @@ export default function DashboardAppearancePage() {
       setSaving(false)
     }
   }
+
+  const handleSaveClick = () => {
+    void saveTheme()
+  }
+
+  const appName = branding?.appName || 'Institute LMS'
+  const brandLogo = branding?.logoUrl || logo.src
+  const resolvedBrandLogo = brandLogoFailed ? logo.src : brandLogo
+
+  useEffect(() => {
+    setBrandLogoFailed(false)
+  }, [brandLogo])
 
   if (loading) {
     return (
@@ -396,7 +409,17 @@ export default function DashboardAppearancePage() {
           }}
         >
           <div className="p-4 rounded-xl m-4" style={{ backgroundColor: 'var(--preview-sidebar)', color: 'var(--preview-sidebar-text)' }}>
-            <div className="text-sm font-semibold mb-4">Sidebar</div>
+            <div className="mb-4 flex items-center gap-2 min-w-0">
+              {resolvedBrandLogo && (
+                <img
+                  src={resolvedBrandLogo}
+                  alt={`${appName} Logo`}
+                  className="h-7 w-auto max-w-[6rem] object-contain shrink-0"
+                  onError={() => setBrandLogoFailed(true)}
+                />
+              )}
+              <div className="text-sm font-semibold truncate">{appName}</div>
+            </div>
             <div className="space-y-2 text-xs">
               {['Dashboard', 'Courses', 'Students', 'Settings'].map((item, index) => (
                 <div

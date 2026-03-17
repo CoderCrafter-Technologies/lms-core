@@ -116,7 +116,7 @@ export default function ManagerDashboard() {
           <p style={{ color: 'var(--color-text)' }}>Pending: <strong>{loading ? '...' : dashboard.stats.pendingSupportTickets}</strong></p>
           <p style={{ color: 'var(--color-text)' }}>In Progress: <strong>{loading ? '...' : dashboard.stats.inProgressSupportTickets}</strong></p>
           <p style={{ color: 'var(--color-text)' }}>Pending Leave Requests: <strong>{loading ? '...' : dashboard.stats.pendingLeaveRequests}</strong></p>
-          <Link href="/dashboard/admin/support" className="inline-flex mt-4 text-sm" style={{ color: 'var(--color-primary)' }}>
+          <Link href="/dashboard/admin/support" prefetch={false} className="inline-flex mt-4 text-sm" style={{ color: 'var(--color-primary)' }}>
             Open all tickets
           </Link>
         </div>
@@ -127,11 +127,11 @@ export default function ManagerDashboard() {
             <h2 className="font-semibold" style={{ color: 'var(--color-text)' }}>Quick Actions</h2>
           </div>
           <div className="space-y-2 text-sm">
-            <Link href="/dashboard/courses" className="block" style={{ color: 'var(--color-primary)' }}>Manage courses and batches</Link>
-            <Link href="/dashboard/users" className="block" style={{ color: 'var(--color-primary)' }}>Review users and roles</Link>
-            <Link href="/dashboard/live-classes" className="block" style={{ color: 'var(--color-primary)' }}>Monitor live classes</Link>
+            <Link href="/dashboard/courses" prefetch={false} className="block" style={{ color: 'var(--color-primary)' }}>Manage courses and batches</Link>
+            <Link href="/dashboard/users" prefetch={false} className="block" style={{ color: 'var(--color-primary)' }}>Review users and roles</Link>
+            <Link href="/dashboard/live-classes" prefetch={false} className="block" style={{ color: 'var(--color-primary)' }}>Monitor live classes</Link>
             {canSendNotifications && (
-              <Link href="/dashboard/notifications" className="block" style={{ color: 'var(--color-primary)' }}>
+              <Link href="/dashboard/notifications" prefetch={false} className="block" style={{ color: 'var(--color-primary)' }}>
                 Send custom notifications
               </Link>
             )}

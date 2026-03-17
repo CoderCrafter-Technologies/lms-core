@@ -346,7 +346,7 @@ export default function HomepageAppearancePage() {
   const [activeAddTarget, setActiveAddTarget] = useState<AddTarget | null>(null)
   const [inlineToolbar, setInlineToolbar] = useState<InlineToolbarState>({ x: 0, y: 0, visible: false })
   const inlineRangeRef = useRef<Range | null>(null)
-  const { branding } = useSetup()
+  const { branding, updateSetupSettings } = useSetup()
   const { theme } = useTheme()
 
   useEffect(() => {
@@ -537,6 +537,9 @@ export default function HomepageAppearancePage() {
       const response = await api.updateLandingPageSettings(settings)
       const saved = response?.settings || response?.data || settings
       setSettings(mergeLandingSettings(saved))
+      updateSetupSettings({
+        publicLanding: saved
+      })
       setStatus({ type: 'success', message: 'Homepage updated successfully.' })
     } catch (error: any) {
       setStatus({ type: 'error', message: error?.message || 'Failed to save homepage.' })

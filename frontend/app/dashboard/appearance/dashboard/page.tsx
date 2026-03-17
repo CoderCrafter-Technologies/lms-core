@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { api } from '@/lib/api'
 import { Palette, Save } from 'lucide-react'
 import { useTheme } from '@/components/providers/ThemeProvider'
+import { useSetup } from '@/components/providers/SetupProvider'
 
 type DashboardTheme = {
   fontFamily: string
@@ -57,6 +58,7 @@ export default function DashboardAppearancePage() {
   const [saving, setSaving] = useState(false)
   const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const { theme: activeTheme } = useTheme()
+  const { updateSetupSettings } = useSetup()
 
   useEffect(() => {
     let mounted = true
@@ -169,6 +171,9 @@ export default function DashboardAppearancePage() {
       const response = await api.updateDashboardTheme(payload)
       const saved = response?.settings || response?.data || payload
       setTheme({ ...defaultTheme, ...saved })
+      updateSetupSettings({
+        dashboardTheme: { ...defaultTheme, ...saved }
+      })
       if (typeof document !== 'undefined') {
         const root = document.documentElement.style
         if (saved.backgroundColor) root.setProperty('--color-background', saved.backgroundColor)
@@ -355,7 +360,9 @@ export default function DashboardAppearancePage() {
 
         <button
           type="button"
-          onClick={saveTheme}
+          onClick={() => {
+            void saveTheme()
+          }}
           disabled={saving}
           className="mt-6 w-full inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-70"
           style={{ backgroundColor: 'var(--color-primary)' }}
@@ -368,7 +375,7 @@ export default function DashboardAppearancePage() {
           type="button"
           onClick={() => {
             setTheme(defaultTheme)
-            saveTheme(defaultTheme)
+            void saveTheme(defaultTheme)
           }}
           className="mt-3 w-full inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold"
           style={{ borderColor: 'var(--color-border)', color: 'var(--color-text)' }}

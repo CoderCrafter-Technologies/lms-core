@@ -6,7 +6,7 @@ import logo from '@/assets/logo_blue.png'
 import { useSetup } from '@/components/providers/SetupProvider'
 
 export default function BrandingAppearancePage() {
-  const { branding, updateBranding } = useSetup()
+  const { branding, updateBranding, updateSetupSettings } = useSetup()
   const [draft, setDraft] = useState({ appName: branding?.appName || 'Institute LMS', logoUrl: branding?.logoUrl || '' })
   const [saving, setSaving] = useState(false)
   const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
@@ -30,6 +30,13 @@ export default function BrandingAppearancePage() {
         appName: saved.appName || payload.appName,
         logoUrl: saved.logoUrl || payload.logoUrl,
         faviconUrl: saved.faviconUrl || payload.faviconUrl
+      })
+      updateSetupSettings({
+        branding: {
+          appName: saved.appName || payload.appName,
+          logoUrl: saved.logoUrl || payload.logoUrl,
+          faviconUrl: saved.faviconUrl || payload.faviconUrl
+        }
       })
       setStatus({ type: 'success', message: 'Branding updated successfully.' })
     } catch (error: any) {
@@ -58,6 +65,13 @@ export default function BrandingAppearancePage() {
           appName: saved.appName || payload.appName,
           logoUrl: saved.logoUrl || payload.logoUrl,
           faviconUrl: saved.faviconUrl || payload.faviconUrl
+        })
+        updateSetupSettings({
+          branding: {
+            appName: saved.appName || payload.appName,
+            logoUrl: saved.logoUrl || payload.logoUrl,
+            faviconUrl: saved.faviconUrl || payload.faviconUrl
+          }
         })
       }
     } catch (error: any) {

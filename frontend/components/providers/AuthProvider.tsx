@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { api } from '../../lib/api'
 import { User } from '../../types'
@@ -30,15 +30,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
   const router = useRouter()
   const pathname = usePathname()
+  const initializedRef = useRef(false)
+  const authRequestRef = useRef<Promise<User | null> | null>(null)
 
   useEffect(() => {
     if (!pathname || pathname === '/setup' || !isProtectedPath(pathname)) {
       setLoading(false)
       return
     }
+    if (user) {
+      initializedRef.current = true
+      setLoading(false)
+      return
+    }
+    if (initializedRef.current) {
+      setLoading(false)
+      return
+    }
+    initializedRef.current = true
     setLoading(true)
-    initializeAuth()
-  }, [pathname])
+    void initializeAuth()
+  }, [pathname, user])
 
   useEffect(() => {
     if (!loading && !user && pathname && isProtectedPath(pathname)) {
@@ -47,6 +59,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [loading, user, pathname, router])
 
   const initializeAuth = async (): Promise<User | null> => {
+    if (authRequestRef.current) {
+      return authRequestRef.current
+    }
+    authRequestRef.current = (async () => {
     try {
       const response = await api.getProfile()
       const resolvedUser = response?.user || null
@@ -61,8 +77,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       return null
     } finally {
+      authRequestRef.current = null
       setLoading(false)
     }
+    })()
+    return authRequestRef.current
   }
 
   const login = async (email: string, password: string) => {
@@ -111,6 +130,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       api.logout().catch(() => {
         // Client-side cleanup will still run
       })
+      initializedRef.current = false
       setUser(null)
       router.replace('/auth/login')
     } catch (error) {

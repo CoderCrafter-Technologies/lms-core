@@ -42,7 +42,24 @@ const cache = {
   expiresAt: 0,
   refreshing: null,
   setupCompleted: false,
-  hasCustomDomain: false
+  strictMode: false
+};
+
+const isProduction = () => String(process.env.NODE_ENV || '').toLowerCase() === 'production';
+
+const toOriginsFromWebsite = (website = '') => {
+  const raw = String(website || '').trim();
+  if (!raw) return [];
+  const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  try {
+    const parsed = new URL(withProtocol);
+    const base = `${parsed.protocol}//${parsed.host}`;
+    // Include both schemes so HTTP->HTTPS transition during setup does not break.
+    const alt = parsed.protocol === 'https:' ? `http://${parsed.host}` : `https://${parsed.host}`;
+    return [base, alt];
+  } catch {
+    return [];
+  }
 };
 
 const refreshAllowedOrigins = async () => {
@@ -57,10 +74,12 @@ const refreshAllowedOrigins = async () => {
         ? setupSettings.customDomains
         : [];
       cache.setupCompleted = Boolean(setupSettings?.completed);
+      cache.strictMode = cache.setupCompleted;
       const activeDomains = customDomains.filter((entry) => entry?.savedAt || entry?.status === 'verified');
-      cache.hasCustomDomain = activeDomains.length > 0;
+      const instituteWebsiteOrigins = toOriginsFromWebsite(setupSettings?.institute?.website || '');
       const origins = [
         ...buildOriginsFromEnv(),
+        ...instituteWebsiteOrigins,
         ...buildOriginsFromDomains(activeDomains)
       ]
         .map(normalizeOrigin)
@@ -80,13 +99,14 @@ const getAllowedOrigins = () => cache.origins;
 
 const isOriginAllowed = (origin) => {
   if (!origin) return true;
-  if (!cache.setupCompleted) return true;
-  if (isIpOrLocalhost(origin)) return true;
-  if (!cache.hasCustomDomain) return true;
+  if (!cache.strictMode) return true;
+
+  if (!isProduction() && isIpOrLocalhost(origin)) return true;
+
   const normalized = normalizeOrigin(origin);
-  if (!normalized) return true;
+  if (!normalized) return false;
   const allowed = getAllowedOrigins();
-  if (!allowed.length) return true;
+  if (!allowed.length) return false;
   return allowed.includes(normalized);
 };
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { api } from '@/lib/api'
+import { useSetup } from '@/components/providers/SetupProvider'
 
 const normalizeHost = (value: string) => value.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase()
 
@@ -12,40 +12,26 @@ const isIpOrLocalhost = (host: string) => {
 }
 
 export default function DomainRedirect() {
+  const { loading, settings } = useSetup()
+
   useEffect(() => {
-    let active = true
+    if (loading || typeof window === 'undefined') return
+    const setupCompleted = Boolean(settings?.completed)
+    const savedDomain = settings?.customDomain?.domain ? String(settings.customDomain.domain).trim() : ''
+    if (!setupCompleted || !savedDomain) return
 
-    const run = async () => {
-      if (typeof window === 'undefined') return
-      try {
-        const response = await api.getPublicSetupSettings()
-        if (!active) return
-        const data = response?.data || {}
-        const completed = Boolean(data.completed)
-        const savedDomain = data.customDomain?.domain ? String(data.customDomain.domain).trim() : ''
-        if (!completed || !savedDomain) return
+    const currentHost = normalizeHost(window.location.hostname)
+    const targetHost = normalizeHost(savedDomain)
 
-        const currentHost = normalizeHost(window.location.hostname)
-        const targetHost = normalizeHost(savedDomain)
+    if (!targetHost || currentHost === targetHost) return
 
-        if (!targetHost || currentHost === targetHost) return
-
-        if (!isIpOrLocalhost(currentHost) && !currentHost.endsWith(`.${targetHost}`)) {
-          return
-        }
-
-        const targetUrl = `${window.location.protocol}//${targetHost}${window.location.pathname}${window.location.search}${window.location.hash}`
-        window.location.replace(targetUrl)
-      } catch {
-        // ignore
-      }
+    if (!isIpOrLocalhost(currentHost) && !currentHost.endsWith(`.${targetHost}`)) {
+      return
     }
 
-    run()
-    return () => {
-      active = false
-    }
-  }, [])
+    const targetUrl = `${window.location.protocol}//${targetHost}${window.location.pathname}${window.location.search}${window.location.hash}`
+    window.location.replace(targetUrl)
+  }, [loading, settings])
 
   return null
 }

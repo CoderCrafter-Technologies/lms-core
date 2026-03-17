@@ -81,7 +81,7 @@ class Server {
     }));
 
     // CORS
-    this.app.use(cors(dynamicCors.corsOptions));
+    this.app.use(cors(dynamicCors.corsOptionsDelegate));
 
     // Rate limiting
     const limiter = rateLimit({

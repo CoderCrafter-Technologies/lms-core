@@ -125,8 +125,39 @@ const ensureFreshCache = () => {
   }
 };
 
-const evaluateOrigin = (origin, callback) => {
+const getRequestHost = (req) => {
+  const forwarded = String(req?.headers?.['x-forwarded-host'] || '').split(',')[0].trim().toLowerCase();
+  const direct = String(req?.headers?.host || '').trim().toLowerCase();
+  return forwarded || direct;
+};
+
+const getOriginHost = (origin = '') => {
+  try {
+    return new URL(String(origin || '').trim()).host.toLowerCase();
+  } catch {
+    return '';
+  }
+};
+
+const isSameHostOrigin = (origin, req) => {
+  const requestHost = getRequestHost(req);
+  const originHost = getOriginHost(origin);
+  if (!requestHost || !originHost) return false;
+  return requestHost === originHost;
+};
+
+const isSetupRoute = (req) => String(req?.path || '').startsWith('/api/setup/');
+
+const evaluateOrigin = (origin, req, callback) => {
   const runCheck = () => {
+    if (isSetupRoute(req)) {
+      callback(null, true);
+      return;
+    }
+    if (isSameHostOrigin(origin, req)) {
+      callback(null, true);
+      return;
+    }
     if (isOriginAllowed(origin)) {
       callback(null, true);
       return;
@@ -147,15 +178,26 @@ const evaluateOrigin = (origin, callback) => {
 const corsOptions = {
   origin: (origin, callback) => {
     ensureFreshCache();
-    evaluateOrigin(origin, callback);
+    evaluateOrigin(origin, null, callback);
   },
   credentials: true
+};
+
+const corsOptionsDelegate = (req, callback) => {
+  ensureFreshCache();
+  const origin = String(req?.headers?.origin || '');
+  evaluateOrigin(origin, req, (error, allow) => {
+    callback(error, {
+      origin: allow,
+      credentials: true
+    });
+  });
 };
 
 const socketCorsOptions = {
   origin: (origin, callback) => {
     ensureFreshCache();
-    evaluateOrigin(origin, callback);
+    evaluateOrigin(origin, null, callback);
   },
   credentials: true
 };
@@ -164,5 +206,6 @@ module.exports = {
   refreshAllowedOrigins,
   getAllowedOrigins,
   corsOptions,
+  corsOptionsDelegate,
   socketCorsOptions
 };

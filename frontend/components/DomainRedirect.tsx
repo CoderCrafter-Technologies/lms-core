@@ -25,11 +25,14 @@ export default function DomainRedirect() {
 
     if (!targetHost || currentHost === targetHost) return
 
-    if (!isIpOrLocalhost(currentHost) && !currentHost.endsWith(`.${targetHost}`)) {
+    // Only auto-redirect from localhost/IP bootstrap hosts.
+    // Redirecting between public hosts can create loops behind proxies/CDNs.
+    if (!isIpOrLocalhost(currentHost)) {
       return
     }
 
-    const targetUrl = `${window.location.protocol}//${targetHost}${window.location.pathname}${window.location.search}${window.location.hash}`
+    const targetProtocol = window.location.protocol === 'https:' ? 'https:' : 'http:'
+    const targetUrl = `${targetProtocol}//${targetHost}${window.location.pathname}${window.location.search}${window.location.hash}`
     window.location.replace(targetUrl)
   }, [loading, settings])
 

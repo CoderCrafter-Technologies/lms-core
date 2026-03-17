@@ -6,7 +6,7 @@ import logo from '@/assets/logo_blue.png'
 import { useSetup } from '@/components/providers/SetupProvider'
 
 export default function BrandingAppearancePage() {
-  const { branding, updateBranding, updateSetupSettings } = useSetup()
+  const { branding, updateBranding, updateSetupSettings, refreshSettings } = useSetup()
   const [draft, setDraft] = useState({ appName: branding?.appName || 'Institute LMS', logoUrl: branding?.logoUrl || '' })
   const [saving, setSaving] = useState(false)
   const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
@@ -38,6 +38,7 @@ export default function BrandingAppearancePage() {
           faviconUrl: saved.faviconUrl || payload.faviconUrl
         }
       })
+      await refreshSettings()
       setStatus({ type: 'success', message: 'Branding updated successfully.' })
     } catch (error: any) {
       setStatus({ type: 'error', message: error?.message || 'Failed to update branding.' })
@@ -51,7 +52,7 @@ export default function BrandingAppearancePage() {
     form.append('logo', file)
     try {
       const response = await api.uploadSetupBrandAssets(form)
-      const logoUrl = response?.data?.logoUrl || response?.logoUrl || response?.data?.data?.logoUrl
+      const logoUrl = response?.data?.logoUrl || response?.settings?.logoUrl || response?.logoUrl || ''
       if (logoUrl) {
         setDraft((prev) => ({ ...prev, logoUrl }))
         const payload = {
@@ -73,6 +74,7 @@ export default function BrandingAppearancePage() {
             faviconUrl: saved.faviconUrl || payload.faviconUrl
           }
         })
+        await refreshSettings()
       }
     } catch (error: any) {
       setStatus({ type: 'error', message: error?.message || 'Failed to upload logo.' })

@@ -264,13 +264,15 @@ router.post(
       ? `/uploads/setup-branding/${favicon.filename}`
       : (logoUrl || '');
 
+    let brandingSettings = null;
     if (logoUrl || faviconUrl) {
-      await systemSettingsStore.updateSetupSettings({
+      const updated = await systemSettingsStore.updateSetupSettings({
         branding: {
           logoUrl: logoUrl || undefined,
           faviconUrl: faviconUrl || undefined
         }
       });
+      brandingSettings = updated?.branding || null;
     }
 
     return res.status(201).json({
@@ -279,7 +281,8 @@ router.post(
       data: {
         logoUrl,
         faviconUrl
-      }
+      },
+      settings: brandingSettings
     });
   }
 );

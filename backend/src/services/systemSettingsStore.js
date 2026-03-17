@@ -263,6 +263,17 @@ const deepMerge = (target, source) => {
 };
 
 class SystemSettingsStore {
+  constructor() {
+    this.writeQueue = Promise.resolve();
+  }
+
+  withWriteLock(task) {
+    const runTask = async () => task();
+    const queued = this.writeQueue.then(runTask, runTask);
+    this.writeQueue = queued.then(() => undefined, () => undefined);
+    return queued;
+  }
+
   async ensureStore() {
     await fs.mkdir(SETTINGS_DIR, { recursive: true });
   }
@@ -324,10 +335,12 @@ class SystemSettingsStore {
   }
 
   async updateDatabaseSettings(nextDatabaseSettings) {
-    const settings = await this.read();
-    settings.database = deepMerge(settings.database, nextDatabaseSettings || {});
-    await this.write(settings);
-    return settings.database;
+    return this.withWriteLock(async () => {
+      const settings = await this.read();
+      settings.database = deepMerge(settings.database, nextDatabaseSettings || {});
+      await this.write(settings);
+      return settings.database;
+    });
   }
 
   async getSetupSettings() {
@@ -336,10 +349,12 @@ class SystemSettingsStore {
   }
 
   async updateSetupSettings(nextSetupSettings) {
-    const settings = await this.read();
-    settings.setup = deepMerge(settings.setup, nextSetupSettings || {});
-    await this.write(settings);
-    return settings.setup;
+    return this.withWriteLock(async () => {
+      const settings = await this.read();
+      settings.setup = deepMerge(settings.setup, nextSetupSettings || {});
+      await this.write(settings);
+      return settings.setup;
+    });
   }
 
   async getPublicAppSettings() {
@@ -360,13 +375,15 @@ class SystemSettingsStore {
   }
 
   async updateTelemetryLicensingSettings(nextTelemetrySettings) {
-    const settings = await this.read();
-    settings.telemetryLicensing = deepMerge(
-      settings.telemetryLicensing,
-      nextTelemetrySettings || {}
-    );
-    await this.write(settings);
-    return settings.telemetryLicensing;
+    return this.withWriteLock(async () => {
+      const settings = await this.read();
+      settings.telemetryLicensing = deepMerge(
+        settings.telemetryLicensing,
+        nextTelemetrySettings || {}
+      );
+      await this.write(settings);
+      return settings.telemetryLicensing;
+    });
   }
 
   async getSmtpSettings() {
@@ -375,16 +392,20 @@ class SystemSettingsStore {
   }
 
   async updateSmtpSettings(nextSmtpSettings) {
-    const settings = await this.read();
-    settings.smtp = deepMerge(settings.smtp, nextSmtpSettings || {});
-    await this.write(settings);
-    return settings.smtp;
+    return this.withWriteLock(async () => {
+      const settings = await this.read();
+      settings.smtp = deepMerge(settings.smtp, nextSmtpSettings || {});
+      await this.write(settings);
+      return settings.smtp;
+    });
   }
 
   async resetToDefaults() {
-    const defaults = cloneDefaults();
-    await this.write(defaults);
-    return defaults;
+    return this.withWriteLock(async () => {
+      const defaults = cloneDefaults();
+      await this.write(defaults);
+      return defaults;
+    });
   }
 }
 

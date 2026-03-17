@@ -5,6 +5,7 @@ import { api } from '@/lib/api'
 import { Palette, Save } from 'lucide-react'
 import { useTheme } from '@/components/providers/ThemeProvider'
 import { useSetup } from '@/components/providers/SetupProvider'
+import logo from '@/assets/logo_blue.png'
 
 type DashboardTheme = {
   fontFamily: string
@@ -59,7 +60,7 @@ export default function DashboardAppearancePage() {
   const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [brandLogoFailed, setBrandLogoFailed] = useState(false)
   const { theme: activeTheme } = useTheme()
-  const { updateSetupSettings } = useSetup()
+  const { branding, updateSetupSettings } = useSetup()
 
   useEffect(() => {
     let mounted = true

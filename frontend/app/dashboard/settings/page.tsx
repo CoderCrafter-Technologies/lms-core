@@ -130,12 +130,15 @@ const notificationTypeOptions = [
   'SYSTEM',
 ]
 
+const DEFAULT_LOCAL_MONGO_URI = process.env.NEXT_PUBLIC_SETUP_MONGODB_URI || 'mongodb://mongodb:27017/lms_futureproof'
+const DEFAULT_LOCALHOST_MONGO_URI = 'mongodb://localhost:27017/lms_futureproof'
+
 const defaultDatabaseSettings: DatabaseSettings = {
   mode: 'mongodb',
-  mongodbUri: '',
+  mongodbUri: DEFAULT_LOCAL_MONGO_URI,
   postgresUri: '',
   postgresSameServer: {
-    host: '127.0.0.1',
+    host: 'postgres',
     port: 5432,
     database: 'lms_futureproof',
     user: 'postgres',
@@ -172,6 +175,9 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<SecuritySettings>(defaultSecuritySettings)
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(defaultNotificationSettings)
   const [databaseSettings, setDatabaseSettings] = useState<DatabaseSettings>(defaultDatabaseSettings)
+  const [useLocalMongoPreset, setUseLocalMongoPreset] = useState(
+    String(defaultDatabaseSettings.mongodbUri || '').trim() === DEFAULT_LOCAL_MONGO_URI
+  )
   const [smtpSettings, setSmtpSettings] = useState<SmtpSettings>(defaultSmtpSettings)
   const [databaseRuntime, setDatabaseRuntime] = useState<DatabaseRuntime | null>(null)
   const [licensingSummary, setLicensingSummary] = useState<LicensingSummary | null>(null)
@@ -447,6 +453,12 @@ export default function SettingsPage() {
     loadSettingsData()
   }, [isAdmin])
 
+  useEffect(() => {
+    if (databaseSettings.mode !== 'mongodb') return
+    const currentUri = String(databaseSettings.mongodbUri || '').trim()
+    setUseLocalMongoPreset(currentUri === DEFAULT_LOCAL_MONGO_URI)
+  }, [databaseSettings.mode, databaseSettings.mongodbUri])
+
   const handleToggle = (key: keyof SecuritySettings) => {
     setSettings((prev) => ({ ...prev, [key]: !prev[key] }))
   }
@@ -546,7 +558,35 @@ export default function SettingsPage() {
     try {
       setSaving(true)
       setMessage(null)
-      const response = await api.updateDatabaseSettings(databaseSettings)
+      const nextSettings: DatabaseSettings = JSON.parse(JSON.stringify(databaseSettings))
+
+      if (nextSettings.mode === 'mongodb') {
+        if (!String(nextSettings.mongodbUri || '').trim()) {
+          setMessage('MongoDB URI is required.')
+          return
+        }
+      }
+
+      if (nextSettings.mode === 'postgres_uri') {
+        if (!String(nextSettings.postgresUri || '').trim()) {
+          setMessage('PostgreSQL URI is required.')
+          return
+        }
+      }
+
+      if (nextSettings.mode === 'postgres_same_server') {
+        const currentHost = String(nextSettings.postgresSameServer?.host || '').trim().toLowerCase()
+        if (currentHost === '127.0.0.1' || currentHost === 'localhost') {
+          nextSettings.postgresSameServer.host = 'postgres'
+          setMessage('Postgres host normalized to "postgres" for Docker Compose.')
+        }
+      }
+
+      if (nextSettings.mode !== 'mongodb' && !String(nextSettings.mongodbUri || '').trim()) {
+        nextSettings.mongodbUri = DEFAULT_LOCAL_MONGO_URI
+      }
+
+      const response = await api.updateDatabaseSettings(nextSettings)
       setDatabaseSettings(response?.settings || databaseSettings)
       setDatabaseRuntime(response?.runtime || null)
       setMessage(response?.message || 'Database settings saved successfully.')
@@ -1093,16 +1133,60 @@ export default function SettingsPage() {
             )}
 
             {databaseSettings.mode === 'mongodb' && (
-              <div className="mt-4">
+              <div className="mt-4 space-y-3">
+                <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-text)' }}>
+                  <input
+                    type="checkbox"
+                    checked={useLocalMongoPreset}
+                    onChange={(e) => {
+                      const checked = e.target.checked
+                      setUseLocalMongoPreset(checked)
+                      if (checked) {
+                        setDatabaseSettings((prev) => ({ ...prev, mongodbUri: DEFAULT_LOCAL_MONGO_URI }))
+                      }
+                    }}
+                  />
+                  Use local MongoDB from this deployment (auto-fill URI)
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUseLocalMongoPreset(true)
+                      setDatabaseSettings((prev) => ({ ...prev, mongodbUri: DEFAULT_LOCAL_MONGO_URI }))
+                    }}
+                    className="px-3 py-1.5 rounded-md border text-sm"
+                    style={{ borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                  >
+                    Use Docker Mongo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUseLocalMongoPreset(false)
+                      setDatabaseSettings((prev) => ({ ...prev, mongodbUri: DEFAULT_LOCALHOST_MONGO_URI }))
+                    }}
+                    className="px-3 py-1.5 rounded-md border text-sm"
+                    style={{ borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                  >
+                    Use localhost Mongo
+                  </button>
+                </div>
                 <label className="block text-sm mb-1" style={{ color: 'var(--color-text)' }}>MongoDB URI</label>
                 <input
                   type="text"
                   value={databaseSettings.mongodbUri}
-                  onChange={(e) => setDatabaseSettings((prev) => ({ ...prev, mongodbUri: e.target.value }))}
+                  onChange={(e) => {
+                    setUseLocalMongoPreset(false)
+                    setDatabaseSettings((prev) => ({ ...prev, mongodbUri: e.target.value }))
+                  }}
                   className="w-full px-3 py-2 rounded-md border"
                   style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-background)', color: 'var(--color-text)' }}
-                  placeholder="mongodb://localhost:27017/lms_futureproof"
+                  placeholder={DEFAULT_LOCAL_MONGO_URI}
                 />
+                <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                  Docker Compose default URI: <code>{DEFAULT_LOCAL_MONGO_URI}</code>
+                </p>
               </div>
             )}
 
@@ -1128,7 +1212,7 @@ export default function SettingsPage() {
                   onChange={(e) => setDatabaseSettings((prev) => ({ ...prev, postgresSameServer: { ...prev.postgresSameServer, host: e.target.value } }))}
                   className="px-3 py-2 rounded-md border"
                   style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-background)', color: 'var(--color-text)' }}
-                  placeholder="Host (127.0.0.1)"
+                  placeholder="Host (use postgres for Docker Compose)"
                 />
                 <input
                   type="number"
@@ -1170,6 +1254,38 @@ export default function SettingsPage() {
                   />
                   Use SSL
                 </label>
+              </div>
+            )}
+
+            {databaseSettings.mode !== 'mongodb' && (
+              <div className="mt-4 rounded-md border p-3" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-background)' }}>
+                <p className="text-sm mb-2" style={{ color: 'var(--color-text)' }}>
+                  PostgreSQL mode is enabled, but this version still needs a MongoDB URI for compatibility data-access.
+                </p>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUseLocalMongoPreset(true)
+                      setDatabaseSettings((prev) => ({ ...prev, mongodbUri: DEFAULT_LOCAL_MONGO_URI }))
+                    }}
+                    className="px-3 py-1.5 rounded-md border text-sm"
+                    style={{ borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                  >
+                    Auto-fill Mongo URI
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  value={databaseSettings.mongodbUri}
+                  onChange={(e) => {
+                    setUseLocalMongoPreset(false)
+                    setDatabaseSettings((prev) => ({ ...prev, mongodbUri: e.target.value }))
+                  }}
+                  className="w-full px-3 py-2 rounded-md border"
+                  style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-background)', color: 'var(--color-text)' }}
+                  placeholder={DEFAULT_LOCAL_MONGO_URI}
+                />
               </div>
             )}
 

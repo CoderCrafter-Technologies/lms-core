@@ -9,6 +9,8 @@ import { useSetup } from '@/components/providers/SetupProvider'
 import { Building2, Palette, Globe, Database, UserCircle, Mail, ChevronRight, ChevronLeft, Check, Sparkles, Copy } from 'lucide-react'
 
 const STATUS_CACHE_KEY = 'lms-setup-completed'
+const DEFAULT_LOCAL_MONGO_URI = process.env.NEXT_PUBLIC_SETUP_MONGODB_URI || 'mongodb://mongodb:27017/lms_futureproof'
+const DEFAULT_LOCALHOST_MONGO_URI = 'mongodb://localhost:27017/lms_futureproof'
 
 type SetupForm = {
   institute: {
@@ -106,7 +108,7 @@ const initialForm: SetupForm = {
   },
   database: {
     mode: 'mongodb',
-    mongodbUri: 'mongodb://localhost:27017/lms_futureproof',
+    mongodbUri: DEFAULT_LOCAL_MONGO_URI,
     postgresUri: '',
     postgresSameServer: {
       host: 'postgres',
@@ -261,6 +263,9 @@ export default function SetupPage() {
     caddyMessage: '',
     savedAt: ''
   })
+  const [useLocalMongoPreset, setUseLocalMongoPreset] = useState(
+    String(initialForm.database.mongodbUri || '').trim() === DEFAULT_LOCAL_MONGO_URI
+  )
   const [dnsDiagnostics, setDnsDiagnostics] = useState<DnsDiagnostics | null>(null)
   const [dnsDiagnosticsMessage, setDnsDiagnosticsMessage] = useState<string>('')
   const lastPreparedDomainRef = useRef<string>('')
@@ -378,6 +383,12 @@ export default function SetupPage() {
       if (faviconPreview.startsWith('blob:')) URL.revokeObjectURL(faviconPreview)
     }
   }, [logoPreview, faviconPreview])
+
+  useEffect(() => {
+    if (form.database.mode !== 'mongodb') return
+    const currentUri = String(form.database.mongodbUri || '').trim()
+    setUseLocalMongoPreset(currentUri === DEFAULT_LOCAL_MONGO_URI)
+  }, [form.database.mode, form.database.mongodbUri])
 
   const setNested = (path: string, value: any) => {
     setForm((prev) => {
@@ -810,6 +821,10 @@ export default function SetupPage() {
           toast.error('Host, port, database, and user are required for PostgreSQL host/port mode.')
           return false
         }
+      }
+      if (form.database.mode !== 'mongodb' && !form.database.mongodbUri.trim()) {
+        toast.error('MongoDB compatibility URI is required for current PostgreSQL compatibility mode.')
+        return false
       }
     }
 
@@ -1291,12 +1306,56 @@ export default function SetupPage() {
       </select>
 
       {form.database.mode === 'mongodb' && (
-        <input
-          className={inputClass}
-          placeholder="mongodb://localhost:27017/lms_futureproof"
-          value={form.database.mongodbUri}
-          onChange={(e) => setNested('database.mongodbUri', e.target.value)}
-        />
+        <div className="space-y-3">
+          <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <input
+              type="checkbox"
+              checked={useLocalMongoPreset}
+              onChange={(e) => {
+                const checked = e.target.checked
+                setUseLocalMongoPreset(checked)
+                if (checked) {
+                  setNested('database.mongodbUri', DEFAULT_LOCAL_MONGO_URI)
+                }
+              }}
+            />
+            Use local MongoDB from this deployment (auto-fill URI)
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="px-3 py-1.5 text-sm rounded-lg border border-blue-300 text-blue-700 dark:text-blue-300 dark:border-blue-700"
+              onClick={() => {
+                setUseLocalMongoPreset(true)
+                setNested('database.mongodbUri', DEFAULT_LOCAL_MONGO_URI)
+              }}
+            >
+              Use Docker Mongo
+            </button>
+            <button
+              type="button"
+              className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300"
+              onClick={() => {
+                setUseLocalMongoPreset(false)
+                setNested('database.mongodbUri', DEFAULT_LOCALHOST_MONGO_URI)
+              }}
+            >
+              Use localhost Mongo
+            </button>
+          </div>
+          <input
+            className={inputClass}
+            placeholder={DEFAULT_LOCAL_MONGO_URI}
+            value={form.database.mongodbUri}
+            onChange={(e) => {
+              setUseLocalMongoPreset(false)
+              setNested('database.mongodbUri', e.target.value)
+            }}
+          />
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Docker Compose default URI: <code>{DEFAULT_LOCAL_MONGO_URI}</code>
+          </p>
+        </div>
       )}
 
       {form.database.mode === 'postgres_uri' && (
@@ -1341,6 +1400,35 @@ export default function SetupPage() {
           <p className="text-sm text-blue-700 dark:text-blue-300">
             Docker Compose tip: Host <code>postgres</code>, Port <code>5432</code>, User <code>postgres</code>, Password <code>postgres</code>.
           </p>
+        </div>
+      )}
+
+      {form.database.mode !== 'mongodb' && (
+        <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3 space-y-3">
+          <p className="text-sm text-amber-900 dark:text-amber-100">
+            PostgreSQL runtime is enabled, but this version still requires a MongoDB URI for compatibility data-access.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="px-3 py-1.5 text-sm rounded-lg border border-amber-300 text-amber-800 dark:text-amber-200 dark:border-amber-700"
+              onClick={() => {
+                setUseLocalMongoPreset(true)
+                setNested('database.mongodbUri', DEFAULT_LOCAL_MONGO_URI)
+              }}
+            >
+              Auto-fill Mongo URI
+            </button>
+          </div>
+          <input
+            className={inputClass}
+            placeholder={DEFAULT_LOCAL_MONGO_URI}
+            value={form.database.mongodbUri}
+            onChange={(e) => {
+              setUseLocalMongoPreset(false)
+              setNested('database.mongodbUri', e.target.value)
+            }}
+          />
         </div>
       )}
     </div>
@@ -1495,7 +1583,7 @@ export default function SetupPage() {
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
-          <div className={`${cardClass} flex flex-col xl:col-span-8`}>
+          <div className={`${cardClass} flex flex-col xl:col-span-8 xl:h-[calc(100vh-260px)] xl:min-h-[560px] xl:overflow-hidden`}>
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-start gap-3">
                 <div className="p-2 bg-blue-600 rounded-xl text-white mt-0.5">
@@ -1508,11 +1596,11 @@ export default function SetupPage() {
               </div>
             </div>
 
-            <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 320px)' }}>
+            <div className="p-6 xl:flex-1 xl:min-h-0 xl:overflow-y-auto">
               {renderStep()}
             </div>
 
-            <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3">
+            <div className="p-6 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 xl:sticky xl:bottom-0 xl:z-10 flex items-center justify-between gap-3">
               <button
                 type="button"
                 onClick={goBack}

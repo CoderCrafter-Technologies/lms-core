@@ -12,6 +12,25 @@ class DatabaseConnection {
     this.dataAccessMode = DATABASE_MODES.MONGODB;
   }
 
+  async warnIfMongoCompromiseMarkerExists() {
+    try {
+      if (!mongoose.connection?.db) return;
+      const admin = mongoose.connection.db.admin();
+      const list = await admin.listDatabases();
+      const databases = Array.isArray(list?.databases) ? list.databases : [];
+      const marker = databases.find((db) =>
+        String(db?.name || '').toUpperCase().includes('READ_ME_TO_RECOVER_YOUR_DATA')
+      );
+      if (marker) {
+        console.error('[SECURITY] Detected MongoDB compromise marker database READ_ME_TO_RECOVER_YOUR_DATA.');
+        console.error('[SECURITY] Your MongoDB was likely exposed publicly without auth and may have been wiped.');
+        console.error('[SECURITY] Immediately restrict MongoDB network exposure and restore from backup.');
+      }
+    } catch (error) {
+      console.warn('[DB] Unable to check compromise markers:', error?.message || error);
+    }
+  }
+
   getMongoConnectOptions() {
     return {
       maxPoolSize: 10,
@@ -38,6 +57,7 @@ class DatabaseConnection {
     process.env.RUNTIME_DATABASE_DATA_ACCESS_MODE = this.dataAccessMode;
 
     console.log(`[DB] MongoDB connected: ${this.connection.connection.host}`);
+    await this.warnIfMongoCompromiseMarkerExists();
   }
 
   buildPostgresConfig(persistedSettings) {
@@ -101,6 +121,7 @@ class DatabaseConnection {
 
     console.log('[DB] PostgreSQL runtime adapter connected');
     console.warn('[DB] Running in PostgreSQL runtime with MongoDB compatibility data-access mode until repositories are fully migrated.');
+    await this.warnIfMongoCompromiseMarkerExists();
   }
 
   async connect() {

@@ -22,8 +22,10 @@ services:
     image: mongo:7
     container_name: coder_mongodb
     restart: unless-stopped
+    # Keep MongoDB private by default to prevent internet scans/ransom bots.
+    # Host access remains available via localhost unless overridden.
     ports:
-      - "27017:27017"
+      - "${MONGO_BIND_ADDRESS:-127.0.0.1}:${MONGO_PORT:-27017}:27017"
     volumes:
       - mongo_data:/data/db
     dns:

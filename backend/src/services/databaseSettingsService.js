@@ -21,6 +21,8 @@ const toSafeInt = (value, fallback) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const isLocalMongoUri = (uri) => /^mongodb(\+srv)?:\/\/(localhost|127\.0\.0\.1)([:/]|$)/i.test(String(uri || '').trim());
+
 const sanitizeSettings = (settings, includeSecrets = false) => ({
   mode: settings.mode,
   mongodbUri: includeSecrets ? settings.mongodbUri : '',
@@ -99,8 +101,14 @@ class DatabaseSettingsService {
       }
     };
 
+    const envMongoUri = String(process.env.MONGODB_URI || '').trim();
+
     if (mode === DATABASE_MODES.MONGODB && !normalized.mongodbUri) {
-      throw new Error('MongoDB URI is required');
+      if (envMongoUri) {
+        normalized.mongodbUri = envMongoUri;
+      } else {
+        throw new Error('MongoDB URI is required');
+      }
     }
 
     if (mode === DATABASE_MODES.POSTGRES_URI && !normalized.postgresUri) {
@@ -109,10 +117,22 @@ class DatabaseSettingsService {
 
     const allowMongoFallback = String(process.env.ENABLE_MONGODB_COMPAT_FALLBACK || 'true').toLowerCase() !== 'false';
     if (allowMongoFallback && mode !== DATABASE_MODES.MONGODB && !normalized.mongodbUri) {
-      normalized.mongodbUri = String(process.env.MONGODB_URI || '').trim();
+      normalized.mongodbUri = envMongoUri;
       if (!normalized.mongodbUri) {
         throw new Error('MongoDB URI is required in compatibility mode until repositories are migrated from Mongoose');
       }
+    }
+
+    // In containerized setups, localhost often points to the backend container itself.
+    // Prefer env MONGODB_URI automatically when a localhost URI is submitted for compatibility mode.
+    if (
+      allowMongoFallback
+      && mode !== DATABASE_MODES.MONGODB
+      && isLocalMongoUri(normalized.mongodbUri)
+      && envMongoUri
+      && !isLocalMongoUri(envMongoUri)
+    ) {
+      normalized.mongodbUri = envMongoUri;
     }
 
     return normalized;

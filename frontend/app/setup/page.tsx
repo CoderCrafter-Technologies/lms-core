@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { Spinner } from '@/components/ui/Spinner'
+import { useSetup } from '@/components/providers/SetupProvider'
 import { Building2, Palette, Globe, Database, UserCircle, Mail, ChevronRight, ChevronLeft, Check, Sparkles, Copy } from 'lucide-react'
 
 const STATUS_CACHE_KEY = 'lms-setup-completed'
@@ -143,6 +144,44 @@ const sections = [
 
 type SectionId = (typeof sections)[number]['id']
 
+const stepGuidance: Record<SectionId, { title: string; description: string; checklist: string[] }> = {
+  institute: {
+    title: 'Institute Basics',
+    description: 'Set your institute identity and support contact details.',
+    checklist: ['Institute name', 'Support email', 'Website and phone (optional)']
+  },
+  branding: {
+    title: 'Branding',
+    description: 'Customize LMS identity with app name, logo, and brand colors.',
+    checklist: ['App name', 'Logo / favicon', 'Primary and accent colors']
+  },
+  domain: {
+    title: 'Domain Setup',
+    description: 'Optional custom domain setup with DNS verification and SSL.',
+    checklist: ['Enter domain', 'Generate DNS records', 'Verify DNS before saving']
+  },
+  defaults: {
+    title: 'Regional Defaults',
+    description: 'Configure timezone and formatting used across your LMS.',
+    checklist: ['Timezone', 'Date format', 'Time format and locale']
+  },
+  database: {
+    title: 'Database Connection',
+    description: 'Choose database mode and provide valid connection details.',
+    checklist: ['Choose MongoDB or PostgreSQL', 'Validate host/port', 'Confirm credentials']
+  },
+  smtp: {
+    title: 'Email Delivery',
+    description: 'Optional SMTP setup for transactional emails and alerts.',
+    checklist: ['SMTP host and port', 'Auth credentials', 'Run SMTP test']
+  },
+  admin: {
+    title: 'Admin Account',
+    description: 'Create the primary admin who will manage your LMS.',
+    checklist: ['Admin email', 'Strong password', 'First and last name']
+  }
+}
+
 const cardClass = 'bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700'
 const inputClass = 'w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all'
 
@@ -173,6 +212,7 @@ const parsePortOrFallback = (value: unknown, fallback: number) => {
 
 export default function SetupPage() {
   const router = useRouter()
+  const { refreshSettings } = useSetup()
   const [form, setForm] = useState<SetupForm>(initialForm)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -851,6 +891,11 @@ export default function SetupPage() {
           // ignore local cache errors
         }
       }
+      try {
+        await refreshSettings()
+      } catch {
+        // Keep setup success flow even if public refresh fails temporarily.
+      }
       toast.success('Setup completed. You can now sign in as admin.')
       router.replace('/auth/login')
     } catch (error: any) {
@@ -1399,6 +1444,8 @@ export default function SetupPage() {
   const active = sections[activeStep]
   const ActiveIcon = active.icon
   const isLast = activeStep === sections.length - 1
+  const progressPercent = Math.round(((activeStep + 1) / sections.length) * 100)
+  const activeGuide = stepGuidance[active.id]
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
@@ -1418,7 +1465,7 @@ export default function SetupPage() {
 
       <div className="max-w-7xl mx-auto py-8 px-4 space-y-8 pb-20">
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-sm border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center gap-2 overflow-x-auto">
+          <div className="flex items-center gap-2 overflow-x-auto pb-3">
             {sections.map((section, index) => {
               const Icon = section.icon
               const isActive = index === activeStep
@@ -1436,60 +1483,122 @@ export default function SetupPage() {
               )
             })}
           </div>
+          <div className="h-2 w-full rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-blue-600 transition-all duration-300"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            Progress: {progressPercent}%
+          </p>
         </div>
 
-        <div className={`${cardClass} flex flex-col`}>
-          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-600 rounded-xl text-white">
-                <ActiveIcon className="w-5 h-5" />
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+          <div className={`${cardClass} flex flex-col xl:col-span-8`}>
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-blue-600 rounded-xl text-white mt-0.5">
+                  <ActiveIcon className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{activeGuide.title}</h2>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{activeGuide.description}</p>
+                </div>
               </div>
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{active.label}</h2>
+            </div>
+
+            <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 320px)' }}>
+              {renderStep()}
+            </div>
+
+            <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={goBack}
+                disabled={activeStep === 0 || submitting}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 disabled:opacity-50"
+              >
+                <ChevronLeft className="w-4 h-4" /> Back
+              </button>
+
+              {!isLast ? (
+                <button
+                  type="button"
+                  onClick={goNext}
+                  disabled={submitting}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium"
+                >
+                  Next <ChevronRight className="w-4 h-4" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={submitting}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium disabled:opacity-50"
+                >
+                  {submitting ? (
+                    <>
+                      <Spinner size="sm" /> Completing Setup...
+                    </>
+                  ) : (
+                    <>
+                      Complete Setup <ChevronRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           </div>
 
-          <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 320px)' }}>
-            {renderStep()}
-          </div>
+          <aside className={`${cardClass} p-5 xl:col-span-4 space-y-4`}>
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">What to fill in this step</h3>
+              <ul className="mt-3 space-y-2">
+                {activeGuide.checklist.map((item) => (
+                  <li key={item} className="text-sm text-gray-700 dark:text-gray-300 flex items-start gap-2">
+                    <span className="mt-1 block w-1.5 h-1.5 rounded-full bg-blue-600" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
 
-          <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={goBack}
-              disabled={activeStep === 0 || submitting}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 disabled:opacity-50"
-            >
-              <ChevronLeft className="w-4 h-4" /> Back
-            </button>
+            <div className="rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/40 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">Quick guidance</p>
+              <p className="text-sm text-blue-900 dark:text-blue-100 mt-1">
+                Keep it simple. Optional fields can be skipped now and updated later from dashboard settings.
+              </p>
+            </div>
 
-            {!isLast ? (
-              <button
-                type="button"
-                onClick={goNext}
-                disabled={submitting}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium"
-              >
-                Next <ChevronRight className="w-4 h-4" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={submitting}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium disabled:opacity-50"
-              >
-                {submitting ? (
-                  <>
-                    <Spinner size="sm" /> Completing Setup...
-                  </>
-                ) : (
-                  <>
-                    Complete Setup <ChevronRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
+            {active.id === 'domain' && (
+              <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/40 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">Domain note</p>
+                <p className="text-sm text-amber-900 dark:text-amber-100 mt-1">
+                  If DNS is not ready, skip this step and finish setup first. You can configure domain/SSL later.
+                </p>
+              </div>
             )}
-          </div>
+
+            {active.id === 'database' && (
+              <div className="rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-900/40 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Docker tip</p>
+                <p className="text-sm text-emerald-900 dark:text-emerald-100 mt-1">
+                  For Docker Compose default stack, use host <code>postgres</code> and port <code>5432</code>.
+                </p>
+              </div>
+            )}
+
+            {active.id === 'admin' && (
+              <div className="rounded-xl bg-violet-50 dark:bg-violet-900/20 border border-violet-100 dark:border-violet-900/40 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">Security tip</p>
+                <p className="text-sm text-violet-900 dark:text-violet-100 mt-1">
+                  Use a strong admin password now. This account controls the entire LMS instance.
+                </p>
+              </div>
+            )}
+          </aside>
         </div>
       </div>
     </div>

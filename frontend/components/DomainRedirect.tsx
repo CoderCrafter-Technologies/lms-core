@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { usePathname } from 'next/navigation'
 import { useSetup } from '@/components/providers/SetupProvider'
 
 const normalizeHost = (value: string) => value.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase()
@@ -12,11 +13,13 @@ const isIpOrLocalhost = (host: string) => {
 }
 
 export default function DomainRedirect() {
-  const { loading, settings } = useSetup()
+  const pathname = usePathname()
+  const { loading, settings, completed } = useSetup()
 
   useEffect(() => {
     if (loading || typeof window === 'undefined') return
-    const setupCompleted = Boolean(settings?.completed)
+    if (pathname?.startsWith('/setup')) return
+    const setupCompleted = Boolean(completed)
     const savedDomain = settings?.customDomain?.domain ? String(settings.customDomain.domain).trim() : ''
     if (!setupCompleted || !savedDomain) return
 
@@ -34,7 +37,7 @@ export default function DomainRedirect() {
     const targetProtocol = window.location.protocol === 'https:' ? 'https:' : 'http:'
     const targetUrl = `${targetProtocol}//${targetHost}${window.location.pathname}${window.location.search}${window.location.hash}`
     window.location.replace(targetUrl)
-  }, [loading, settings])
+  }, [completed, loading, pathname, settings])
 
   return null
 }

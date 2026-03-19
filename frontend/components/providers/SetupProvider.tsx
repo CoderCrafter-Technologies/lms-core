@@ -55,6 +55,7 @@ export function SetupProvider({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<any | null>(null)
   const { theme } = useTheme()
   const bootstrappedRef = useRef(false)
+  const redirectSignatureRef = useRef<string>('')
   const apiOrigin = useMemo(
     () => (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/api\/?$/, ''),
     []
@@ -282,12 +283,35 @@ export function SetupProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (loading) return
+
+    // Avoid setup/login ping-pong right after setup completion:
+    // setup page writes STATUS_CACHE_KEY immediately, but provider state can lag
+    // until refreshSettings/bootstrap finishes.
     if (!completed && pathname !== '/setup') {
-      router.replace('/setup')
-    } else if (completed && pathname === '/setup') {
-      router.replace('/auth/login')
+      const cachedCompleted = readCompletedCache()
+      if (cachedCompleted === true) {
+        setCompleted(true)
+        return
+      }
     }
-  }, [completed, loading, pathname, router])
+
+    let targetPath = ''
+    if (!completed && pathname !== '/setup') {
+      targetPath = '/setup'
+    } else if (completed && pathname === '/setup') {
+      targetPath = '/auth/login'
+    }
+
+    if (!targetPath) {
+      redirectSignatureRef.current = ''
+      return
+    }
+
+    const signature = `${pathname}->${targetPath}`
+    if (redirectSignatureRef.current === signature) return
+    redirectSignatureRef.current = signature
+    router.replace(targetPath)
+  }, [completed, loading, pathname, readCompletedCache, router])
 
   const branding = useMemo<BrandingConfig>(() => {
     const raw = settings?.branding || {}

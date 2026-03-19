@@ -265,10 +265,18 @@ const deepMerge = (target, source) => {
 class SystemSettingsStore {
   constructor() {
     this.writeQueue = Promise.resolve();
+    this.writeDepth = 0;
   }
 
   withWriteLock(task) {
-    const runTask = async () => task();
+    const runTask = async () => {
+      this.writeDepth += 1;
+      try {
+        return await task();
+      } finally {
+        this.writeDepth = Math.max(0, this.writeDepth - 1);
+      }
+    };
     const queued = this.writeQueue.then(runTask, runTask);
     this.writeQueue = queued.then(() => undefined, () => undefined);
     return queued;
@@ -279,8 +287,11 @@ class SystemSettingsStore {
   }
 
   async read() {
-    // Prevent reading half-updated files while a queued write is still in flight.
-    await this.writeQueue.catch(() => undefined);
+    // Prevent reading half-updated files while a queued write is in flight.
+    // Skip this wait when already executing inside the write lock to avoid self-deadlock.
+    if (this.writeDepth === 0) {
+      await this.writeQueue.catch(() => undefined);
+    }
     await this.ensureStore();
     try {
       const raw = await fs.readFile(SETTINGS_FILE, 'utf8');

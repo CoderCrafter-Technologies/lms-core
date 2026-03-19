@@ -116,8 +116,8 @@ const detectServerIp = async () => {
 
 const getNginxConfig = ({ domain, frontendPort, backendPort }) => {
   const safeDomain = String(domain || '').trim();
-  const fePort = Number(frontendPort || process.env.NGINX_FRONTEND_PORT || 3001);
-  const bePort = Number(backendPort || process.env.NGINX_BACKEND_PORT || 5001);
+  const fePort = Number(frontendPort || process.env.NGINX_FRONTEND_PORT || 3000);
+  const bePort = Number(backendPort || process.env.NGINX_BACKEND_PORT || 5000);
   return `
 server {
   listen 80;
@@ -160,10 +160,13 @@ const getCaddyfile = ({ domain, email, frontendUpstream, backendUpstream }) => {
   const safeEmail = String(email || '').trim();
   const fe = String(frontendUpstream || 'frontend:3000').trim();
   const be = String(backendUpstream || 'backend:5000').trim();
-  return `
-{
+  const globalOptions = safeEmail
+    ? `{
   email ${safeEmail}
-}
+}`
+    : '';
+  return `
+${globalOptions}
 
 ${safeDomain} {
   encode gzip
@@ -180,6 +183,59 @@ ${safeDomain} {
   reverse_proxy http://${fe}
 }
 `.trim();
+};
+
+const applyCaddyConfigForDomain = async ({ domain, email = '' }) => {
+  const normalizedDomain = normalizeDomain(domain || '');
+  if (!normalizedDomain) {
+    throw new Error('Domain is required');
+  }
+
+  const setupSettings = await systemSettingsStore.getSetupSettings();
+  const entry = (setupSettings?.customDomains || []).find((item) => item?.domain === normalizedDomain);
+  if (!entry || entry.status !== 'verified') {
+    throw new Error('Domain must be verified before applying Caddy config');
+  }
+
+  const supportEmail = String(
+    email || setupSettings?.institute?.supportEmail || process.env.CADDY_DEFAULT_EMAIL || ''
+  ).trim();
+  const frontendUpstream = process.env.CADDY_FRONTEND_UPSTREAM || 'frontend:3000';
+  const backendUpstream = process.env.CADDY_BACKEND_UPSTREAM || 'backend:5000';
+  const caddyfile = getCaddyfile({
+    domain: normalizedDomain,
+    email: supportEmail,
+    frontendUpstream,
+    backendUpstream
+  });
+
+  const caddyfilePath = process.env.CADDYFILE_PATH || '/app/caddy/Caddyfile';
+  await fsPromises.mkdir(require('path').dirname(caddyfilePath), { recursive: true });
+  await fsPromises.writeFile(caddyfilePath, `${caddyfile}\n`, 'utf8');
+
+  const adminUrl = process.env.CADDY_ADMIN_URL || 'http://caddy:2019';
+  const reloadUrl = `${adminUrl.replace(/\/$/, '')}/load?adapter=caddyfile`;
+  const reloadResult = await postText(reloadUrl, caddyfile, 'text/caddyfile');
+
+  if (!reloadResult.ok) {
+    throw new Error(
+      `Failed to reload Caddy: ${typeof reloadResult.data === 'string' ? reloadResult.data : reloadResult.status}`
+    );
+  }
+
+  const now = new Date().toISOString();
+  const updated = {
+    ...entry,
+    caddyAppliedAt: now,
+    caddyLastError: ''
+  };
+  const updatedDomains = upsertCustomDomain(setupSettings?.customDomains || [], updated);
+  await systemSettingsStore.updateSetupSettings({ customDomains: updatedDomains });
+
+  return {
+    appliedAt: now,
+    email: supportEmail || null
+  };
 };
 
 const postText = async (url, text, contentType = 'text/plain') => {
@@ -218,7 +274,18 @@ router.get('/public-settings', async (req, res, next) => {
   try {
     const status = await setupService.getStatus();
     const publicSettings = await systemSettingsStore.getPublicAppSettings();
-    const setupSettings = await systemSettingsStore.getSetupSettings();
+    let setupSettings = await systemSettingsStore.getSetupSettings();
+    const latestSavedVerifiedDomain = (setupSettings?.customDomains || [])
+      .filter((item) => item?.domain && item?.savedAt && item?.status === 'verified')
+      .sort((a, b) => String(b.savedAt || '').localeCompare(String(a.savedAt || '')))[0];
+    if (status.completed && latestSavedVerifiedDomain?.domain && !latestSavedVerifiedDomain?.caddyAppliedAt) {
+      try {
+        await applyCaddyConfigForDomain({ domain: latestSavedVerifiedDomain.domain });
+        setupSettings = await systemSettingsStore.getSetupSettings();
+      } catch (error) {
+        console.warn('[SETUP] Deferred Caddy apply failed:', error?.message || error);
+      }
+    }
     const branding = publicSettings?.branding || {};
     const institute = publicSettings?.institute || {};
     const normalizedBranding = {
@@ -596,59 +663,21 @@ router.post('/custom-domains/apply-caddy', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Domain is required' });
   }
 
-  const setupSettings = await systemSettingsStore.getSetupSettings();
-  const entry = (setupSettings?.customDomains || []).find((item) => item?.domain === domain);
-  if (!entry || entry.status !== 'verified') {
-    return res.status(400).json({ success: false, message: 'Domain must be verified before applying Caddy config' });
-  }
-
-  const supportEmail = String(req.body?.email || setupSettings?.institute?.supportEmail || '').trim();
-  if (!supportEmail) {
-    return res.status(400).json({ success: false, message: 'Institute support email is required to enable HTTPS' });
-  }
-
-  const frontendUpstream = process.env.CADDY_FRONTEND_UPSTREAM || 'frontend:3000';
-  const backendUpstream = process.env.CADDY_BACKEND_UPSTREAM || 'backend:5000';
-  const caddyfile = getCaddyfile({
-    domain,
-    email: supportEmail,
-    frontendUpstream,
-    backendUpstream
-  });
-
-  const caddyfilePath = process.env.CADDYFILE_PATH || '/app/caddy/Caddyfile';
-  await fsPromises.mkdir(require('path').dirname(caddyfilePath), { recursive: true });
-  await fsPromises.writeFile(caddyfilePath, `${caddyfile}\n`, 'utf8');
-
-  const adminUrl = process.env.CADDY_ADMIN_URL || 'http://caddy:2019';
-  const reloadUrl = `${adminUrl.replace(/\/$/, '')}/load?adapter=caddyfile`;
-
-  let reloadResult;
   try {
-    reloadResult = await postText(reloadUrl, caddyfile, 'text/caddyfile');
+    await applyCaddyConfigForDomain({
+      domain,
+      email: String(req.body?.email || '').trim()
+    });
   } catch (error) {
-    return res.status(503).json({
+    const message = String(error?.message || 'Failed to apply Caddy config');
+    const isUnreachable = message.toLowerCase().includes('caddy admin api is not reachable')
+      || message.toLowerCase().includes('connect')
+      || message.toLowerCase().includes('econn');
+    return res.status(isUnreachable ? 503 : 400).json({
       success: false,
-      message: 'Caddy admin API is not reachable. Ensure the caddy service is running.',
-      error: error?.message || String(error)
+      message
     });
   }
-  if (!reloadResult.ok) {
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to reload Caddy',
-      error: reloadResult.data || reloadResult.status
-    });
-  }
-
-  const now = new Date().toISOString();
-  const updated = {
-    ...entry,
-    caddyAppliedAt: now,
-    caddyLastError: ''
-  };
-  const updatedDomains = upsertCustomDomain(setupSettings?.customDomains || [], updated);
-  await systemSettingsStore.updateSetupSettings({ customDomains: updatedDomains });
 
   return res.json({
     success: true,
@@ -679,11 +708,26 @@ router.post('/custom-domains/save', async (req, res) => {
   const updatedDomains = upsertCustomDomain(setupSettings?.customDomains || [], updated);
   await systemSettingsStore.updateSetupSettings({ customDomains: updatedDomains });
   await dynamicCors.refreshAllowedOrigins();
+  let caddyApplied = false;
+  let caddyError = '';
+  try {
+    await applyCaddyConfigForDomain({
+      domain,
+      email: String(req.body?.email || '').trim()
+    });
+    caddyApplied = true;
+  } catch (error) {
+    caddyError = String(error?.message || 'Failed to apply Caddy config');
+  }
 
   return res.json({
     success: true,
     message: 'Domain saved successfully',
-    data: updated
+    data: {
+      ...updated,
+      caddyApplied,
+      caddyError: caddyError || null
+    }
   });
 });
 
@@ -739,6 +783,21 @@ router.post('/complete', completeSetupValidation, async (req, res, next) => {
 
     const status = await setupService.completeSetup(payload);
     await dynamicCors.refreshAllowedOrigins();
+    const latestSetupSettings = await systemSettingsStore.getSetupSettings();
+    const customDomains = Array.isArray(latestSetupSettings?.customDomains) ? latestSetupSettings.customDomains : [];
+    const candidateDomain = [...customDomains]
+      .filter((item) => item?.domain && item?.status === 'verified')
+      .sort((a, b) => String(b?.savedAt || b?.verifiedAt || '').localeCompare(String(a?.savedAt || a?.verifiedAt || '')))[0];
+    if (candidateDomain?.domain) {
+      try {
+        await applyCaddyConfigForDomain({
+          domain: candidateDomain.domain,
+          email: String(payload?.institute?.supportEmail || '').trim()
+        });
+      } catch (error) {
+        console.warn('[SETUP] Auto-apply Caddy failed:', error?.message || error);
+      }
+    }
     return res.status(201).json({
       success: true,
       message: 'Setup completed successfully',

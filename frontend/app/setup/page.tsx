@@ -164,6 +164,11 @@ type DnsDiagnostics = {
   errorA?: string | null
 }
 
+const parsePortOrFallback = (value: unknown, fallback: number) => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : fallback
+}
+
 export default function SetupPage() {
   const router = useRouter()
   const [form, setForm] = useState<SetupForm>(initialForm)
@@ -174,14 +179,39 @@ export default function SetupPage() {
   const [faviconFile, setFaviconFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState('')
   const [faviconPreview, setFaviconPreview] = useState('')
+  const defaultFrontendPort = useMemo(() => {
+    const envOverride = parsePortOrFallback(process.env.NEXT_PUBLIC_SETUP_FRONTEND_PORT, 0)
+    if (envOverride > 0) return envOverride
+    if (typeof window !== 'undefined') {
+      const browserPort = parsePortOrFallback(window.location.port, 0)
+      if (browserPort > 0) return browserPort
+    }
+    return 3000
+  }, [])
+  const defaultBackendPort = useMemo(() => {
+    const envOverride = parsePortOrFallback(process.env.NEXT_PUBLIC_SETUP_BACKEND_PORT, 0)
+    if (envOverride > 0) return envOverride
+    const apiBase = String(process.env.NEXT_PUBLIC_API_URL || '').trim()
+    if (apiBase && !apiBase.startsWith('/')) {
+      try {
+        const parsed = new URL(apiBase)
+        const parsedPort = parsePortOrFallback(parsed.port, 0)
+        if (parsedPort > 0) return parsedPort
+        return parsed.protocol === 'https:' ? 443 : 80
+      } catch {
+        // ignore parse errors and fall back to default docker backend port
+      }
+    }
+    return 5000
+  }, [])
   const [customDomain, setCustomDomain] = useState({
     domain: '',
     serverIp: '',
     status: '',
     records: [] as DnsRecord[],
     lastCheckedAt: '',
-    frontendPort: 3001,
-    backendPort: 5001,
+    frontendPort: defaultFrontendPort,
+    backendPort: defaultBackendPort,
     certbotEmail: '',
     nginxConfig: '',
     sslMessage: '',
@@ -409,27 +439,19 @@ export default function SetupPage() {
 
       if (verified) {
         toast.success('Domain verified successfully')
-        setDomainBusy(false)
-        if (form.institute.supportEmail?.trim()) {
-          api.applyCaddyConfig({ domain, email: form.institute.supportEmail })
-            .then((applyResponse: any) => {
-              setCustomDomain((prev) => ({
-                ...prev,
-                caddyMessage: applyResponse?.message || 'Caddy configuration applied'
-              }))
-            })
-            .catch((applyError: any) => {
-              setCustomDomain((prev) => ({
-                ...prev,
-                caddyMessage: applyError?.message || 'Failed to apply Caddy config'
-              }))
-            })
-        } else {
-          setCustomDomain((prev) => ({
-            ...prev,
-            caddyMessage: 'Add a support email to enable automatic HTTPS.'
-          }))
-        }
+        api.applyCaddyConfig({ domain, email: form.institute.supportEmail || undefined })
+          .then((applyResponse: any) => {
+            setCustomDomain((prev) => ({
+              ...prev,
+              caddyMessage: applyResponse?.message || 'Caddy configuration applied'
+            }))
+          })
+          .catch((applyError: any) => {
+            setCustomDomain((prev) => ({
+              ...prev,
+              caddyMessage: applyError?.message || 'Failed to apply Caddy config'
+            }))
+          })
       } else {
         toast.error('DNS records not detected yet. Please try again after propagation.')
       }
@@ -611,7 +633,7 @@ export default function SetupPage() {
     }
     try {
       setDomainBusy(true)
-      const response = await api.applyCaddyConfig({ domain, email: form.institute.supportEmail })
+      const response = await api.applyCaddyConfig({ domain, email: form.institute.supportEmail || undefined })
       setCustomDomain((prev) => ({
         ...prev,
         caddyMessage: response?.message || 'Caddy configuration applied'
@@ -654,26 +676,19 @@ export default function SetupPage() {
           }]
         }
       })
-      if (form.institute.supportEmail?.trim()) {
-        api.applyCaddyConfig({ domain, email: form.institute.supportEmail })
-          .then((applyResponse: any) => {
-            setCustomDomain((prev) => ({
-              ...prev,
-              caddyMessage: applyResponse?.message || 'Caddy configuration applied'
-            }))
-          })
-          .catch((applyError: any) => {
-            setCustomDomain((prev) => ({
-              ...prev,
-              caddyMessage: applyError?.message || 'Failed to apply Caddy config'
-            }))
-          })
-      } else {
-        setCustomDomain((prev) => ({
-          ...prev,
-          caddyMessage: 'Add a support email to enable automatic HTTPS.'
-        }))
-      }
+      api.applyCaddyConfig({ domain, email: form.institute.supportEmail || undefined })
+        .then((applyResponse: any) => {
+          setCustomDomain((prev) => ({
+            ...prev,
+            caddyMessage: applyResponse?.message || 'Caddy configuration applied'
+          }))
+        })
+        .catch((applyError: any) => {
+          setCustomDomain((prev) => ({
+            ...prev,
+            caddyMessage: applyError?.message || 'Failed to apply Caddy config'
+          }))
+        })
       toast.success('Domain saved successfully')
     } catch (error: any) {
       toast.error(error?.message || 'Failed to save domain')
@@ -701,8 +716,8 @@ export default function SetupPage() {
         status: '',
         records: [] as DnsRecord[],
         lastCheckedAt: '',
-        frontendPort: 3001,
-        backendPort: 5001,
+        frontendPort: defaultFrontendPort,
+        backendPort: defaultBackendPort,
         certbotEmail: '',
         nginxConfig: '',
         sslMessage: '',
@@ -1004,9 +1019,9 @@ export default function SetupPage() {
                 <input
                   className={inputClass}
                   type="number"
-                  placeholder="3001"
+                  placeholder={String(defaultFrontendPort)}
                   value={customDomain.frontendPort}
-                  onChange={(e) => setCustomDomain((prev) => ({ ...prev, frontendPort: Number(e.target.value || 3001) }))}
+                  onChange={(e) => setCustomDomain((prev) => ({ ...prev, frontendPort: Number(e.target.value || defaultFrontendPort) }))}
                 />
               </div>
               <div className="space-y-1">
@@ -1014,9 +1029,9 @@ export default function SetupPage() {
                 <input
                   className={inputClass}
                   type="number"
-                  placeholder="5001"
+                  placeholder={String(defaultBackendPort)}
                   value={customDomain.backendPort}
-                  onChange={(e) => setCustomDomain((prev) => ({ ...prev, backendPort: Number(e.target.value || 5001) }))}
+                  onChange={(e) => setCustomDomain((prev) => ({ ...prev, backendPort: Number(e.target.value || defaultBackendPort) }))}
                 />
               </div>
             </div>

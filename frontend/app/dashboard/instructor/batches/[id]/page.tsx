@@ -436,7 +436,7 @@ export default function InstructorBatchDetailPage() {
                         <div className="flex gap-2">
                           {(liveClass.status === 'LIVE' || liveClass.status === 'SCHEDULED') && (
                             <JoinClassButton 
-                              roomId={liveClass.roomId}
+                              roomId={liveClass.roomId || (liveClass as any)._id}
                               size="sm"
                               variant="outline"
                             >

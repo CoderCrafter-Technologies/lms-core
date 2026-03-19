@@ -519,7 +519,9 @@ export default function ScheduledClassesPage() {
                                                 className="gap-2"
                                                 onClick={(e) => {
                                                   e.stopPropagation();
-                                                  router.push(`/classroom/${scheduledClass.roomId}`);
+                                                  const targetRoomId = scheduledClass?.roomId || scheduledClass?.id || scheduledClass?._id
+                                                  if (!targetRoomId) return
+                                                  router.push(`/classroom/${targetRoomId}`);
                                                 }}
                                               >
                                                 <Video className="h-4 w-4" />

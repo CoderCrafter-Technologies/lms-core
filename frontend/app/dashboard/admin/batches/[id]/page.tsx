@@ -701,7 +701,11 @@ export default function AdminBatchDetailPage() {
                             <Button 
                               size="sm"
                               variant="outline"
-                              onClick={() => window.open(`/classroom/${liveClass.roomId}`, '_blank')}
+                              onClick={() => {
+                                const targetRoomId = liveClass.roomId || liveClass._id
+                                if (!targetRoomId) return
+                                window.open(`/classroom/${targetRoomId}`, '_blank')
+                              }}
                             >
                               <PlayIcon className="w-4 h-4" />
                             </Button>

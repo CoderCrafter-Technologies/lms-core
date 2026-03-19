@@ -4,6 +4,7 @@ const { validationResult } = require('express-validator');
 const notificationService = require('../services/notificationService');
 const { enrichLiveClassesForStudent } = require('../services/liveClassAttendanceService');
 const { generateLiveClassRoomId } = require('../utils/liveClassRoomId');
+const mongoose = require('mongoose');
 
 /**
  * Get all live classes with filtering
@@ -142,7 +143,7 @@ const getLiveClassByRoomId = asyncHandler(async (req, res) => {
   console.log(req.params.roomId, "Requested Live Class By Room ID")
   const { roomId } = req.params;
   
-  let liveClass = await liveClassRepository.findOne({roomId: roomId}, {
+  const populateOptions = {
     populate: [
       { 
         path: 'batchId', 
@@ -152,21 +153,17 @@ const getLiveClassByRoomId = asyncHandler(async (req, res) => {
       { path: 'instructorId', select: 'firstName lastName email' },
       { path: 'createdBy', select: 'firstName lastName' }
     ]
-  });
+  };
+
+  let liveClass = await liveClassRepository.findOne({ roomId }, populateOptions);
 
   if (!liveClass) {
-    // Fallback: allow class ID to be used as roomId
-    liveClass = await liveClassRepository.findById(roomId, {
-      populate: [
-        { 
-          path: 'batchId', 
-          select: 'name batchCode courseId',
-          populate: { path: 'courseId', select: 'title description' }
-        },
-        { path: 'instructorId', select: 'firstName lastName email' },
-        { path: 'createdBy', select: 'firstName lastName' }
-      ]
-    });
+    // Fallback: allow class ID to be used as roomId, but only when it's a valid ObjectId.
+    // This avoids CastError -> 500 for legacy room ids like "room_..." that are not ObjectIds.
+    const possibleClassId = roomId.startsWith('cls_') ? roomId.slice(4) : roomId;
+    if (mongoose.Types.ObjectId.isValid(possibleClassId)) {
+      liveClass = await liveClassRepository.findById(possibleClassId, populateOptions);
+    }
   }
   
   if (!liveClass) {
@@ -178,10 +175,10 @@ const getLiveClassByRoomId = asyncHandler(async (req, res) => {
 
   liveClass = await liveClassRepository.ensureRoomId(liveClass);
 
-  res.json({
+  return res.status(200).json({
     success: true,
     data: liveClass
-  }).status(200);
+  });
 });
 
 

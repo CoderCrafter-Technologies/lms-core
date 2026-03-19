@@ -370,7 +370,11 @@ export default function LiveClassesPage() {
                       <div className="flex flex-wrap gap-2">
                         {activeTab === 'live' && (
                           <button
-                            onClick={() => router.push(`/classroom/${classItem.roomId}`)}
+                            onClick={() => {
+                              const targetRoomId = classItem?.roomId || classItem?.id || classItem?._id
+                              if (!targetRoomId) return
+                              router.push(`/classroom/${targetRoomId}`)
+                            }}
                             className="px-4 py-2 text-white rounded-lg transition-colors"
                             style={{ backgroundColor: 'var(--color-error)' }}
                             onMouseEnter={(e) => {

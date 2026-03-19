@@ -297,6 +297,8 @@ export default function InstructorDashboard() {
                 const now = new Date()
                 const isLiveNow = classStart <= now && classEnd >= now
 
+                const targetRoomId = liveClass.roomId || liveClass.id || (liveClass as any)._id
+
                 return (
                   <div
                     key={liveClass.id}
@@ -317,7 +319,10 @@ export default function InstructorDashboard() {
                       <Button
                         size="sm"
                         className={isLiveNow ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-blue-600 hover:bg-blue-700'}
-                        onClick={() => window.open(`/classroom/${liveClass.roomId}`, '_blank')}
+                        onClick={() => {
+                          if (!targetRoomId) return
+                          window.open(`/classroom/${targetRoomId}`, '_blank')
+                        }}
                       >
                         <PlayIcon className="w-4 h-4 mr-1" />
                         {isLiveNow ? 'Join Now' : 'Start Class'}

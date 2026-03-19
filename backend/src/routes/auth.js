@@ -10,6 +10,7 @@ const User = require('../models/User');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { authenticateToken } = require('../middleware/auth');
 const emailService = require('../services/emailService');
+const { resolveIpLocation } = require('../services/sessionLocationService');
 
 const router = express.Router();
 const REFRESH_COOKIE_NAME = 'refreshToken';
@@ -689,12 +690,20 @@ router.get('/sessions', authenticateToken, asyncHandler(async (req, res) => {
     }
   }
 
+  const sessionsWithLocation = await Promise.all(
+    sessions.map(async (session) => ({
+      ...session,
+      location: await resolveIpLocation(session.ipAddress)
+    }))
+  );
+
   res.json({
-    sessions: sessions.map((session) => ({
+    sessions: sessionsWithLocation.map((session) => ({
       id: session.id,
       sessionId: session.sessionId,
       deviceName: session.deviceName,
       ipAddress: session.ipAddress,
+      location: session.location || 'Unknown location',
       userAgent: session.userAgent,
       createdAt: session.createdAt,
       lastUsedAt: session.lastUsedAt,

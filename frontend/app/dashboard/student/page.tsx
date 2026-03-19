@@ -326,7 +326,7 @@ export default function StudentDashboard() {
                     <div className="flex sm:justify-end">
                       <Button
                         onClick={() => {
-                          const targetRoomId = liveClass.roomId || liveClass.id
+                          const targetRoomId = liveClass.roomId || liveClass.id || (liveClass as any)._id
                           if (targetRoomId) {
                             router.push(`/classroom/${targetRoomId}`)
                           } else {

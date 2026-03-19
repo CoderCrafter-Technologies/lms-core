@@ -7,7 +7,6 @@ import { Modal } from '../ui/Modal'
 import { 
   FileText, 
   Image, 
-  DollarSign, 
   Tag, 
   ChevronRight, 
   ChevronLeft, 
@@ -17,12 +16,6 @@ import {
   BookOpen,
   BarChart
 } from 'lucide-react'
-
-interface Pricing {
-  type: 'FREE' | 'PAID' | 'SUBSCRIPTION'
-  amount: number
-  currency: string
-}
 
 interface CourseData {
   // Step 1: Basic Info
@@ -37,15 +30,10 @@ interface CourseData {
   thumbnailPreview: string
   materials: Array<{ name: string; type: string; url: string }>
   
-  // Step 3: Pricing & Settings
-  pricing: Pricing
-  isPublic: boolean
-  
-  // Step 4: Prerequisites & Tags
+  // Step 3: Prerequisites & Tags
   prerequisites: string
   tags: string[]
   estimatedHours: number
-  estimatedMinutes: number
 }
 
 interface CourseCreationWizardProps {
@@ -68,23 +56,15 @@ export function CourseCreationWizard({ isOpen, onClose, onCourseCreated }: Cours
     thumbnail: null,
     thumbnailPreview: '',
     materials: [],
-    pricing: {
-      type: 'FREE',
-      amount: 0,
-      currency: 'USD'
-    },
-    isPublic: true,
     prerequisites: '',
     tags: [],
-    estimatedHours: 0,
-    estimatedMinutes: 0
+    estimatedHours: 0
   })
 
   const steps = [
     { id: 1, name: 'Basic Information', icon: FileText },
     { id: 2, name: 'Media & Resources', icon: Image },
-    { id: 3, name: 'Pricing & Settings', icon: DollarSign },
-    { id: 4, name: 'Prerequisites & Tags', icon: Tag }
+    { id: 3, name: 'Prerequisites & Tags', icon: Tag }
   ]
 
   const categories = [
@@ -101,18 +81,7 @@ export function CourseCreationWizard({ isOpen, onClose, onCourseCreated }: Cours
       return next
     })
 
-    if (field.startsWith('pricing.')) {
-      const pricingField = field.split('.')[1]
-      setCourseData(prev => ({
-        ...prev,
-        pricing: {
-          ...prev.pricing,
-          [pricingField]: value
-        }
-      }))
-    } else {
-      setCourseData(prev => ({ ...prev, [field]: value }))
-    }
+    setCourseData(prev => ({ ...prev, [field]: value }))
   }
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -160,29 +129,19 @@ export function CourseCreationWizard({ isOpen, onClose, onCourseCreated }: Cours
       if (!courseData.level) errors.level = 'Difficulty level is required'
     }
 
-    if (step === 3 && courseData.pricing.type !== 'FREE') {
-      const amount = Number(courseData.pricing.amount)
-      if (!Number.isFinite(amount)) errors['pricing.amount'] = 'Pricing amount must be a number'
-      else if (amount <= 0) errors['pricing.amount'] = 'Pricing amount must be greater than 0'
-    }
-
     return errors
   }
 
   const validateAll = () => {
-    const merged = {
-      ...validateByStep(1),
-      ...validateByStep(2),
-      ...validateByStep(3),
-      ...validateByStep(4),
-    }
+    const merged = steps.reduce<Record<string, string>>((acc, step) => ({
+      ...acc,
+      ...validateByStep(step.id)
+    }), {})
 
     if (Object.keys(merged).length > 0) {
       setFieldErrors((prev) => ({ ...prev, ...merged }))
       if (merged.title || merged.description || merged.category || merged.level) {
         setCurrentStep(1)
-      } else if (merged['pricing.amount']) {
-        setCurrentStep(3)
       }
       toast.error(Object.values(merged)[0])
       return false
@@ -227,12 +186,12 @@ export function CourseCreationWizard({ isOpen, onClose, onCourseCreated }: Cours
       payload.append('shortDescription', courseData.shortDescription.trim())
       payload.append('category', courseData.category)
       payload.append('level', courseData.level)
-      payload.append('pricing.type', courseData.pricing.type)
-      payload.append('pricing.amount', String(courseData.pricing.amount || 0))
-      payload.append('pricing.currency', courseData.pricing.currency || 'USD')
+      payload.append('pricing.type', 'FREE')
+      payload.append('pricing.amount', '0')
+      payload.append('pricing.currency', 'USD')
       payload.append('estimatedDuration.hours', String(courseData.estimatedHours || 0))
-      payload.append('estimatedDuration.minutes', String(courseData.estimatedMinutes || 0))
-      payload.append('isPublic', String(Boolean(courseData.isPublic)))
+      payload.append('estimatedDuration.minutes', '0')
+      payload.append('isPublic', 'false')
       payload.append('tags', JSON.stringify(courseData.tags || []))
 
       if (courseData.thumbnail) {
@@ -252,13 +211,7 @@ export function CourseCreationWizard({ isOpen, onClose, onCourseCreated }: Cours
       setCourseData({
         title: '', description: '', shortDescription: '', category: 'PROGRAMMING',
         level: 'BEGINNER', thumbnail: null, thumbnailPreview: '', materials: [],
-        pricing: {
-          type: 'FREE',
-          amount: 0,
-          currency: 'USD'
-        },
-        isPublic: true,
-        prerequisites: '', tags: [], estimatedHours: 0, estimatedMinutes: 0
+        prerequisites: '', tags: [], estimatedHours: 0
       })
       setCurrentStep(1)
       
@@ -274,8 +227,6 @@ export function CourseCreationWizard({ isOpen, onClose, onCourseCreated }: Cours
           setFieldErrors((prev) => ({ ...prev, ...nextErrors }))
           if (nextErrors.title || nextErrors.description || nextErrors.category || nextErrors.level) {
             setCurrentStep(1)
-          } else if (nextErrors['pricing.amount']) {
-            setCurrentStep(3)
           }
         }
       }
@@ -502,161 +453,33 @@ export function CourseCreationWizard({ isOpen, onClose, onCourseCreated }: Cours
                 <Clock className="h-4 w-4 inline mr-1" />
                 Estimated Duration
               </label>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <input
-                    type="number"
-                    min="0"
-                    className="w-full px-3 py-2 border rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-opacity-50"
-                    style={{ 
-                      backgroundColor: 'var(--color-surface)',
-                      borderColor: 'var(--color-border)',
-                      color: 'var(--color-text)'
-                    }}
-                    placeholder="Hours"
-                    value={courseData.estimatedHours}
-                    onChange={(e) => handleInputChange('estimatedHours', parseInt(e.target.value) || 0)}
-                    onFocus={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--color-primary)'
-                      e.currentTarget.style.boxShadow = `0 0 0 2px var(--color-focus-ring)`
-                    }}
-                    onBlur={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--color-border)'
-                      e.currentTarget.style.boxShadow = 'none'
-                    }}
-                  />
-                  <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>Hours</span>
-                </div>
-                <div>
-                  <input
-                    type="number"
-                    min="0"
-                    max="59"
-                    className="w-full px-3 py-2 border rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-opacity-50"
-                    style={{ 
-                      backgroundColor: 'var(--color-surface)',
-                      borderColor: 'var(--color-border)',
-                      color: 'var(--color-text)'
-                    }}
-                    placeholder="Minutes"
-                    value={courseData.estimatedMinutes}
-                    onChange={(e) => handleInputChange('estimatedMinutes', parseInt(e.target.value) || 0)}
-                    onFocus={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--color-primary)'
-                      e.currentTarget.style.boxShadow = `0 0 0 2px var(--color-focus-ring)`
-                    }}
-                    onBlur={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--color-border)'
-                      e.currentTarget.style.boxShadow = 'none'
-                    }}
-                  />
-                  <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>Minutes</span>
-                </div>
-              </div>
+              <input
+                type="number"
+                min="0"
+                className="w-full px-3 py-2 border rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-opacity-50"
+                style={{ 
+                  backgroundColor: 'var(--color-surface)',
+                  borderColor: 'var(--color-border)',
+                  color: 'var(--color-text)'
+                }}
+                placeholder="Hours"
+                value={courseData.estimatedHours}
+                onChange={(e) => handleInputChange('estimatedHours', parseInt(e.target.value) || 0)}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--color-primary)'
+                  e.currentTarget.style.boxShadow = `0 0 0 2px var(--color-focus-ring)`
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--color-border)'
+                  e.currentTarget.style.boxShadow = 'none'
+                }}
+              />
+              <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>Hours</span>
             </div>
           </div>
         )
 
       case 3:
-        return (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text-secondary)' }}>
-                Pricing Type
-              </label>
-              <div className="space-y-2">
-                {['FREE', 'PAID', 'SUBSCRIPTION'].map(type => (
-                  <label key={type} className="flex items-center gap-2 p-2 rounded-md transition-colors hover:bg-surface-hover">
-                    <input
-                      type="radio"
-                      name="pricingType"
-                      value={type}
-                      checked={courseData.pricing.type === type}
-                      onChange={(e) => handleInputChange('pricing.type', e.target.value)}
-                      className="h-4 w-4 rounded-full focus:ring-2 focus:ring-opacity-50"
-                      style={{ accentColor: 'var(--color-primary)' }}
-                    />
-                    <span className="text-sm" style={{ color: 'var(--color-text)' }}>{type}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {courseData.pricing.type !== 'FREE' && (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text-secondary)' }}>
-                    Price
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    className="w-full px-3 py-2 border rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-opacity-50"
-                    style={getInputStyles('pricing.amount')}
-                    value={courseData.pricing.amount}
-                    onChange={(e) => handleInputChange('pricing.amount', parseFloat(e.target.value) || 0)}
-                    onFocus={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--color-primary)'
-                      e.currentTarget.style.boxShadow = `0 0 0 2px var(--color-focus-ring)`
-                    }}
-                    onBlur={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--color-border)'
-                      e.currentTarget.style.boxShadow = 'none'
-                    }}
-                  />
-                  {fieldErrors['pricing.amount'] && (
-                    <p className="mt-1 text-xs" style={{ color: 'var(--color-error)' }}>{fieldErrors['pricing.amount']}</p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text-secondary)' }}>
-                    Currency
-                  </label>
-                  <select
-                    className="w-full px-3 py-2 border rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-opacity-50"
-                    style={{ 
-                      backgroundColor: 'var(--color-surface)',
-                      borderColor: 'var(--color-border)',
-                      color: 'var(--color-text)'
-                    }}
-                    value={courseData.pricing.currency}
-                    onChange={(e) => handleInputChange('pricing.currency', e.target.value)}
-                    onFocus={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--color-primary)'
-                      e.currentTarget.style.boxShadow = `0 0 0 2px var(--color-focus-ring)`
-                    }}
-                    onBlur={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--color-border)'
-                      e.currentTarget.style.boxShadow = 'none'
-                    }}
-                  >
-                    <option value="USD">USD</option>
-                    <option value="EUR">EUR</option>
-                    <option value="GBP">GBP</option>
-                    <option value="INR">INR</option>
-                  </select>
-                </div>
-              </div>
-            )}
-
-            <div className="flex items-center gap-2 p-2 rounded-md">
-              <input
-                type="checkbox"
-                id="isPublic"
-                checked={courseData.isPublic}
-                onChange={(e) => handleInputChange('isPublic', e.target.checked)}
-                className="h-4 w-4 rounded focus:ring-2 focus:ring-opacity-50"
-                style={{ accentColor: 'var(--color-primary)' }}
-              />
-              <label htmlFor="isPublic" className="text-sm" style={{ color: 'var(--color-text)' }}>
-                Make course publicly visible
-              </label>
-            </div>
-          </div>
-        )
-
-      case 4:
         return (
           <div className="space-y-4">
             <div>

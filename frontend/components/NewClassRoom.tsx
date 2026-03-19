@@ -441,15 +441,13 @@ export default function NewLiveClassRoom({ classData, user, enrollmentId, onLeav
   const roomIdRef = useRef(roomId)
   const participantsRef = useRef(participants)
   const voiceCleanupRef = useRef<null | (() => void)>(null)
+  const resolvedRoomId = classData?.roomId || (classData?.id ? `cls_${classData.id}` : classData?._id ? `cls_${classData._id}` : null)
 
   useEffect(() => {
     if (!classData) return
     console.log(user, "User")
-    if (!classData.roomId) {
-      classData.roomId = `room_${classData.id || classData._id || Date.now()}`
-    }
-    setRoomId(classData.roomId || null)
-  }, [classData])
+    setRoomId(resolvedRoomId || null)
+  }, [classData, resolvedRoomId])
 
   useEffect(() => {
     micOnRef.current = micOn
@@ -507,7 +505,13 @@ export default function NewLiveClassRoom({ classData, user, enrollmentId, onLeav
 
   useEffect(() => {
     if (!joined) return
-    console.log("🔌 Joining room:", classData.roomId)
+    if (!resolvedRoomId) {
+      toast.error("Class room ID is missing. Please refresh and try again.")
+      onLeave()
+      return
+    }
+
+    console.log("🔌 Joining room:", resolvedRoomId)
     const socket = process.env.NEXT_PUBLIC_SOCKET_URL ? initSocket(process.env.NEXT_PUBLIC_SOCKET_URL) : initSocket()
     socketRef.current = socket
     ;(async () => {
@@ -797,10 +801,10 @@ export default function NewLiveClassRoom({ classData, user, enrollmentId, onLeav
         }
       })
 
-      console.log("📡 Emitting join for room:", classData.roomId)
+      console.log("📡 Emitting join for room:", resolvedRoomId)
       socket.emit("join", {
-        roomId: classData.roomId,
-        classId: classData.id,
+        roomId: resolvedRoomId,
+        classId: classData?.id || classData?._id,
         user,
       })
     })()
@@ -811,7 +815,7 @@ export default function NewLiveClassRoom({ classData, user, enrollmentId, onLeav
       voiceCleanupRef.current = null
       try {
         if (socketRef.current) {
-          socketRef.current.emit("leave", { roomId: classData.roomId })
+          socketRef.current.emit("leave", { roomId: resolvedRoomId })
           socketRef.current.disconnect()
         }
       } catch {}
@@ -821,7 +825,7 @@ export default function NewLiveClassRoom({ classData, user, enrollmentId, onLeav
       setPeers({})
       setParticipants([])
     }
-  }, [joined, roomId])
+  }, [joined, roomId, resolvedRoomId, classData, user, onLeave])
 
   const cleanupPeerConnection = (socketId: string, userId?: string) => {
     console.log(`🧹 Cleaning up peer connection for socket ${socketId}, user ${userId}`)

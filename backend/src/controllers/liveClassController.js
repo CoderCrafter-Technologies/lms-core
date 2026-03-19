@@ -3,6 +3,7 @@ const { asyncHandler } = require('../middleware/errorHandler');
 const { validationResult } = require('express-validator');
 const notificationService = require('../services/notificationService');
 const { enrichLiveClassesForStudent } = require('../services/liveClassAttendanceService');
+const { generateLiveClassRoomId } = require('../utils/liveClassRoomId');
 
 /**
  * Get all live classes with filtering
@@ -208,7 +209,7 @@ const createLiveClass = asyncHandler(async (req, res) => {
   }
 
   // Generate room ID
-  const roomId = generateRoomId();
+  const roomId = generateLiveClassRoomId();
 
   const liveClassData = {
     ...req.body,
@@ -268,7 +269,12 @@ const createLiveClass = asyncHandler(async (req, res) => {
  */
 const updateLiveClass = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const updates = req.body;
+  const updates = { ...(req.body || {}) };
+
+  // Room IDs are immutable to keep all participants on the same class channel.
+  delete updates.roomId;
+  delete updates._id;
+  delete updates.id;
 
   const liveClass = await liveClassRepository.updateById(id, updates);
   
@@ -469,13 +475,6 @@ const getLiveClassStats = asyncHandler(async (req, res) => {
     }
   });
 });
-
-/**
- * Helper function to generate room ID
- */
-function generateRoomId() {
-  return `room_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-}
 
 module.exports = {
   getLiveClasses,

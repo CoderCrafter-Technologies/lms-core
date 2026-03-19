@@ -31,6 +31,7 @@ type SignInSession = {
   sessionId: string
   deviceName: string
   ipAddress?: string
+  location?: string
   userAgent?: string
   createdAt: string
   lastUsedAt: string
@@ -901,6 +902,9 @@ export default function SettingsPage() {
                       {session.isCurrent && <span className="ml-2 text-xs text-green-600"><CheckCircle2 className="w-3 h-3 inline mr-1" />Current</span>}
                     </p>
                     <p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary)' }}>IP: {session.ipAddress || 'Unknown'}</p>
+                    <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                      Location: {session.location || 'Unknown location'}
+                    </p>
                     <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
                       Last active: {new Date(session.lastUsedAt).toLocaleString()}
                     </p>

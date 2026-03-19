@@ -1,6 +1,7 @@
 const LiveClass = require('../models/LiveClass');
 const notificationService = require('./notificationService');
 const { classifyAttendance, getClassDurationMinutes } = require('./liveClassAttendanceService');
+const { deterministicRoomIdForClass } = require('../utils/liveClassRoomId');
 
 class SocketHandler {
   constructor(io) {
@@ -10,6 +11,42 @@ class SocketHandler {
     this.userSockets = new Map(); // userId -> Set<socketId>
     this.socketToUser = new Map(); // socketId -> userId
     this.setupEventHandlers();
+  }
+
+  normalizeUserId(user = {}, socketUserId = null) {
+    const candidate = socketUserId || user?.id || user?._id || null;
+    return candidate ? String(candidate) : null;
+  }
+
+  async resolveCanonicalRoom({ roomId, classId }) {
+    const normalizedClassId = classId ? String(classId) : null;
+
+    let liveClass = null;
+    if (normalizedClassId) {
+      liveClass = await LiveClass.findById(normalizedClassId).select('_id roomId').lean().catch(() => null);
+    }
+
+    if (!liveClass && roomId) {
+      liveClass = await LiveClass.findOne({ roomId: String(roomId) }).select('_id roomId').lean().catch(() => null);
+    }
+
+    if (liveClass?._id && !liveClass.roomId) {
+      const fallbackRoomId = deterministicRoomIdForClass(liveClass._id);
+      if (fallbackRoomId) {
+        await LiveClass.updateOne({ _id: liveClass._id }, { $set: { roomId: fallbackRoomId } }).catch(() => {});
+        return fallbackRoomId;
+      }
+    }
+
+    if (liveClass?.roomId) {
+      return String(liveClass.roomId);
+    }
+
+    if (normalizedClassId) {
+      return deterministicRoomIdForClass(normalizedClassId);
+    }
+
+    return roomId ? String(roomId) : null;
   }
 
   setupEventHandlers() {
@@ -228,27 +265,38 @@ class SocketHandler {
     await liveClass.save().catch(() => {});
   }
 
-  async handleJoinClass(socket, { roomId, classId, user }) {
-    console.log(`User ${user?.firstName || 'Unknown'} ${user?.lastName || ''} attempting to join class ${roomId}`);
+  async handleJoinClass(socket, payload = {}) {
+    const { roomId: requestedRoomId, classId, user } = payload;
+    console.log(`User ${user?.firstName || 'Unknown'} ${user?.lastName || ''} attempting to join class ${requestedRoomId || classId || 'unknown'}`);
 
     try {
-      if (!roomId || !user) {
+      const canonicalRoomId = await this.resolveCanonicalRoom({
+        roomId: requestedRoomId,
+        classId
+      });
+
+      const authenticatedUser = socket.user || user || {};
+      const authenticatedUserId = this.normalizeUserId(authenticatedUser, socket.userId);
+
+      if (!canonicalRoomId || !authenticatedUserId) {
         socket.emit('error', { message: 'Missing required data for joining class' });
         return;
       }
 
-      socket.join(roomId);
-      socket.roomId = roomId;
+      // Always bind to canonical room ID so all participants converge to the same room.
+      socket.join(canonicalRoomId);
+      socket.roomId = canonicalRoomId;
       socket.classId = classId;
 
-      const authenticatedUser = socket.user || user;
-      const authenticatedUserId = authenticatedUser.id?.toString();
-      if (authenticatedUserId) {
-        this.registerSocketUser(socket, authenticatedUserId);
-      }
+      this.registerSocketUser(socket, authenticatedUserId);
 
-      if (!this.liveClasses.has(roomId)) {
-        this.liveClasses.set(roomId, {
+      const normalizedUser = {
+        ...authenticatedUser,
+        id: authenticatedUserId
+      };
+
+      if (!this.liveClasses.has(canonicalRoomId)) {
+        this.liveClasses.set(canonicalRoomId, {
           participants: new Map(),
           socketToUserId: new Map(),
           instructor: null,
@@ -259,26 +307,27 @@ class SocketHandler {
         });
       }
 
-      const room = this.liveClasses.get(roomId);
-      const isInstructor = authenticatedUser?.roleId?.name === 'INSTRUCTOR' || authenticatedUser?.role?.name === 'INSTRUCTOR' || authenticatedUser?.role === 'instructor';
+      const room = this.liveClasses.get(canonicalRoomId);
+      const isInstructor = normalizedUser?.roleId?.name === 'INSTRUCTOR' || normalizedUser?.role?.name === 'INSTRUCTOR' || normalizedUser?.role === 'instructor';
 
-      const existingParticipant = room.participants.get(authenticatedUser.id);
+      const existingParticipant = room.participants.get(authenticatedUserId);
       if (existingParticipant) {
         const oldSocketId = existingParticipant.socketId;
         room.socketToUserId.delete(oldSocketId);
 
-        socket.to(roomId).emit('peer-left', {
+        socket.to(canonicalRoomId).emit('peer-left', {
           peerId: oldSocketId,
-          userId: authenticatedUser.id
+          userId: authenticatedUserId
         });
 
         existingParticipant.socketId = socket.id;
         existingParticipant.joinedAt = new Date();
-        room.socketToUserId.set(socket.id, authenticatedUser.id);
+        existingParticipant.user = normalizedUser;
+        room.socketToUserId.set(socket.id, authenticatedUserId);
       } else {
         const participant = {
-          userId: authenticatedUser.id,
-          user: authenticatedUser,
+          userId: authenticatedUserId,
+          user: normalizedUser,
           socketId: socket.id,
           joinedAt: new Date(),
           isInstructor,
@@ -288,8 +337,8 @@ class SocketHandler {
           isScreenSharing: false
         };
 
-        room.participants.set(authenticatedUser.id, participant);
-        room.socketToUserId.set(socket.id, authenticatedUser.id);
+        room.participants.set(authenticatedUserId, participant);
+        room.socketToUserId.set(socket.id, authenticatedUserId);
       }
 
       room.lastActivity = Date.now();
@@ -299,29 +348,34 @@ class SocketHandler {
         socket.isInstructor = true;
       }
 
-      const existingParticipants = Array.from(room.participants.values()).filter((p) => p.userId !== authenticatedUser.id);
+      const existingParticipants = Array.from(room.participants.values()).filter((p) => p.userId !== authenticatedUserId);
 
-      socket.to(roomId).emit('participant-joined', {
-        userId: authenticatedUser.id,
-        user: authenticatedUser,
+      socket.to(canonicalRoomId).emit('participant-joined', {
+        userId: authenticatedUserId,
+        user: normalizedUser,
         socketId: socket.id
       });
 
       socket.emit('class-joined', {
+        roomId: canonicalRoomId,
         participants: existingParticipants,
         chatHistory: room.chatHistory || []
       });
 
+      if (requestedRoomId && requestedRoomId !== canonicalRoomId) {
+        socket.emit('room-resolved', { requestedRoomId, canonicalRoomId });
+      }
+
       // Persist attendance marker used for missed-class notifications.
       await LiveClass.updateOne(
-        { roomId },
+        { roomId: canonicalRoomId },
         {
-          $addToSet: { attendees: authenticatedUser.id },
+          $addToSet: { attendees: authenticatedUserId },
           $set: { 'stats.totalParticipants': room.participants.size }
         }
       ).catch(() => {});
 
-      await this.markAttendanceJoin(roomId, authenticatedUser.id);
+      await this.markAttendanceJoin(canonicalRoomId, authenticatedUserId);
     } catch (error) {
       console.error('Error joining class:', error);
       socket.emit('error', { message: 'Failed to join class: ' + error.message });

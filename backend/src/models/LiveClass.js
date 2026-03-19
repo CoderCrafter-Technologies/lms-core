@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { deterministicRoomIdForClass, generateLiveClassRoomId } = require('../utils/liveClassRoomId');
 
 // PostgreSQL equivalent: live_classes table
 const liveClassSchema = new mongoose.Schema({
@@ -342,7 +343,7 @@ liveClassSchema.virtual('timeUntilStart').get(function() {
 liveClassSchema.pre('save', function(next) {
   // Generate room ID if not provided
   if (!this.roomId) {
-    this.roomId = `room_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    this.roomId = deterministicRoomIdForClass(this._id) || generateLiveClassRoomId();
   }
   
   // Update status based on timing

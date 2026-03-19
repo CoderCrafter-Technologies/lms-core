@@ -210,7 +210,10 @@ export default function LiveClassRoom({ classData, user, enrollmentId, onLeave }
     // Validate class data has required roomId
     if (classData && !classData.roomId) {
       debugLog('Missing roomId in classData', { classData })
-      const fallbackRoomId = `room_${classData.id || classData._id || Date.now()}`
+      const fallbackRoomId = classData.id || classData._id ? `cls_${classData.id || classData._id}` : null
+      if (!fallbackRoomId) {
+        return
+      }
       classData.roomId = fallbackRoomId
       debugLog('Using fallback roomId', { roomId: fallbackRoomId })
     }
@@ -437,7 +440,11 @@ export default function LiveClassRoom({ classData, user, enrollmentId, onLeave }
       return
     }
 
-    const roomId = classData.roomId || classData.id || classData._id || `fallback_${Date.now()}`
+    const roomId = classData.roomId || (classData.id || classData._id ? `cls_${classData.id || classData._id}` : null)
+    if (!roomId) {
+      toast.error('Class room ID is missing.')
+      return
+    }
     debugLog('Joining class', { roomId })
     
     socketRef.current.emit('join-class', {

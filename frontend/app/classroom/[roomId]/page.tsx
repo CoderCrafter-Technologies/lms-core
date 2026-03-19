@@ -220,7 +220,7 @@ export default function ClassroomPage() {
     return (
       <div className="overflow-hidden">
         <NewLiveClassRoom
-          key={`live-class-${selectedClass.id}-${user.id}`}
+          key={`live-class-${selectedClass.id || (selectedClass as any)._id}-${user.id}`}
           classData={selectedClass}
           user={user}
           enrollmentId=""

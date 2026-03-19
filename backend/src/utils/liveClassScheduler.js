@@ -7,10 +7,7 @@ const {
   getDayNameForDateParts,
   zonedDateTimeToUtc
 } = require('./timezone');
-
-function generateRoomId() {
-  return `room_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-}
+const { generateLiveClassRoomId } = require('./liveClassRoomId');
 
 const classScheduler = async (batchData) => {
   try {
@@ -62,7 +59,7 @@ const classScheduler = async (batchData) => {
 
         liveClasses.push({
           title: `${batchData.name} - Class ${classIndex + 1}`,
-          roomId: generateRoomId(),
+          roomId: generateLiveClassRoomId(),
           description: `Live class for ${batchData.name}`,
           batchId: batchData.id || batchData._id,
           courseId: batchData.courseId,

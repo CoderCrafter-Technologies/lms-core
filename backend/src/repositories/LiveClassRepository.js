@@ -1,5 +1,6 @@
 const BaseRepository = require('./BaseRepository');
 const LiveClass = require('../models/LiveClass');
+const { deterministicRoomIdForClass } = require('../utils/liveClassRoomId');
 
 class LiveClassRepository extends BaseRepository {
   constructor() {
@@ -84,7 +85,8 @@ class LiveClassRepository extends BaseRepository {
     const classId = liveClass.id || liveClass._id;
     if (!classId) return liveClass;
 
-    const roomId = `room_${classId}`;
+    const roomId = deterministicRoomIdForClass(classId);
+    if (!roomId) return liveClass;
     try {
       await this.updateById(classId, { roomId });
     } catch (error) {

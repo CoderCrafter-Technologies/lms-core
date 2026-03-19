@@ -159,7 +159,11 @@ export default function StudentCourseTrackPage() {
   }
 
   const handleJoinClass = (classItem: any) => {
-    router.push(`/dashboard/courses/track/${enrollmentId}/live-class/${classItem.id}`)
+    const targetRoomId = classItem?.roomId || classItem?.id || classItem?._id
+    if (!targetRoomId) {
+      return
+    }
+    router.push(`/classroom/${targetRoomId}`)
   }
 
   const isClassActive = (classItem: any) => {

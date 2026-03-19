@@ -12,6 +12,7 @@ const {
   zonedDateTimeToUtc,
   getDatePartsInTimezone
 } = require('../utils/timezone');
+const { generateLiveClassRoomId } = require('../utils/liveClassRoomId');
 
 /**
  * Get all batches with filtering
@@ -487,7 +488,7 @@ const scheduleClass = asyncHandler(async (req, res) => {
     instructorId: batch.instructorId, // Use batch instructor
     createdBy: req.userId,
     status: 'SCHEDULED',
-    roomId: `room_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    roomId: generateLiveClassRoomId()
   };
 
   const scheduledClass = await liveClassRepository.create(classData);
@@ -519,7 +520,12 @@ const scheduleClass = asyncHandler(async (req, res) => {
  */
 const updateScheduledClass = asyncHandler(async (req, res) => {
   const { id, classId } = req.params;
-  const updates = req.body;
+  const updates = { ...(req.body || {}) };
+
+  // Room IDs are immutable once generated.
+  delete updates.roomId;
+  delete updates._id;
+  delete updates.id;
 
   const scheduledClass = await liveClassRepository.updateById(classId, updates);
   
@@ -659,7 +665,7 @@ const autoGenerateClasses = asyncHandler(async (req, res) => {
         description: `Auto-generated session for ${batch.name}`,
         createdBy: req.userId,
         status: 'SCHEDULED',
-        roomId: `room_${Date.now()}_${sessionCount}_${Math.random().toString(36).substr(2, 6)}`
+        roomId: generateLiveClassRoomId()
       };
 
       const scheduledClass = await liveClassRepository.create(classData);

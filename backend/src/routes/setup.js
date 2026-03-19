@@ -678,6 +678,7 @@ router.post('/custom-domains/save', async (req, res) => {
   };
   const updatedDomains = upsertCustomDomain(setupSettings?.customDomains || [], updated);
   await systemSettingsStore.updateSetupSettings({ customDomains: updatedDomains });
+  await dynamicCors.refreshAllowedOrigins();
 
   return res.json({
     success: true,
@@ -700,6 +701,7 @@ router.delete('/custom-domains/:domain', async (req, res) => {
 
   const updatedDomains = removeCustomDomain(setupSettings?.customDomains || [], domain);
   await systemSettingsStore.updateSetupSettings({ customDomains: updatedDomains });
+  await dynamicCors.refreshAllowedOrigins();
 
   return res.json({
     success: true,
@@ -722,11 +724,12 @@ router.post('/complete', completeSetupValidation, async (req, res, next) => {
     const existingInstitute = payload.institute && typeof payload.institute === 'object'
       ? payload.institute
       : {};
+    const requestOrigin = String(req.headers.origin || '').split(',')[0].trim();
     const forwardedHost = String(req.headers['x-forwarded-host'] || '').split(',')[0].trim();
     const requestHost = forwardedHost || String(req.headers.host || '').trim();
     const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim().toLowerCase();
     const protocol = forwardedProto || req.protocol || 'https';
-    const inferredWebsite = requestHost ? `${protocol}://${requestHost}` : '';
+    const inferredWebsite = requestOrigin || (requestHost ? `${protocol}://${requestHost}` : '');
     if (!String(existingInstitute.website || '').trim() && inferredWebsite) {
       payload.institute = {
         ...existingInstitute,

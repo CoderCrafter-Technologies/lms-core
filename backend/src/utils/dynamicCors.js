@@ -55,6 +55,8 @@ const cache = {
 };
 
 const isProduction = () => String(process.env.NODE_ENV || '').toLowerCase() === 'production';
+const strictCorsAfterSetup = () =>
+  String(process.env.STRICT_CORS_AFTER_SETUP || 'true').toLowerCase() !== 'false';
 
 const toOriginsFromWebsite = (website = '') => {
   const raw = String(website || '').trim();
@@ -83,7 +85,7 @@ const refreshAllowedOrigins = async () => {
         ? setupSettings.customDomains
         : [];
       cache.setupCompleted = Boolean(setupSettings?.completed);
-      cache.strictMode = cache.setupCompleted;
+      cache.strictMode = cache.setupCompleted && strictCorsAfterSetup();
       const activeDomains = customDomains.filter((entry) => entry?.savedAt || entry?.status === 'verified');
       const instituteWebsiteOrigins = toOriginsFromWebsite(setupSettings?.institute?.website || '');
       const origins = [
@@ -150,7 +152,8 @@ const isSetupRoute = (req) => String(req?.path || '').startsWith('/api/setup/');
 
 const evaluateOrigin = (origin, req, callback) => {
   const runCheck = () => {
-    if (isSetupRoute(req)) {
+    // Setup stays fully public only until initial setup is completed.
+    if (isSetupRoute(req) && !cache.strictMode) {
       callback(null, true);
       return;
     }

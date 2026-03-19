@@ -103,13 +103,19 @@ class SetupService {
   async getStatus() {
     await telemetryLicensingService.ensureIdentity();
     const setupSettings = await systemSettingsStore.getSetupSettings();
-    const adminRole = await Role.findOne({ name: 'ADMIN' }).lean();
-    const adminExists = adminRole
-      ? Boolean(await User.exists({ roleId: adminRole._id, isActive: true }))
-      : false;
+    let adminExists = false;
+    try {
+      const adminRole = await Role.findOne({ name: 'ADMIN' }).lean();
+      adminExists = adminRole
+        ? Boolean(await User.exists({ roleId: adminRole._id, isActive: true }))
+        : false;
+    } catch {
+      // Avoid marking setup incomplete on transient DB lookup failures.
+      adminExists = false;
+    }
 
     // Auto-heal setup flag if settings file was reset but an active ADMIN already exists.
-    let completed = Boolean(setupSettings?.completed && adminExists);
+    let completed = Boolean(setupSettings?.completed);
     if (!completed && adminExists) {
       const healedSetup = {
         completed: true,
@@ -133,8 +139,8 @@ class SetupService {
   async getPrefill() {
     const [setupSettings, databaseSettings, smtpSettings] = await Promise.all([
       systemSettingsStore.getSetupSettings(),
-      databaseSettingsService.getDatabaseSettings({ includeSecrets: true }),
-      smtpService.getSettings({ includeSecrets: true })
+      databaseSettingsService.getDatabaseSettings({ includeSecrets: false }),
+      smtpService.getSettings({ includeSecrets: false })
     ]);
 
     return {

@@ -279,6 +279,8 @@ class SystemSettingsStore {
   }
 
   async read() {
+    // Prevent reading half-updated files while a queued write is still in flight.
+    await this.writeQueue.catch(() => undefined);
     await this.ensureStore();
     try {
       const raw = await fs.readFile(SETTINGS_FILE, 'utf8');
@@ -286,9 +288,17 @@ class SystemSettingsStore {
       return deepMerge(cloneDefaults(), parsed);
     } catch (error) {
       if (error.code === 'ENOENT') {
-        const defaults = cloneDefaults();
-        await this.write(defaults);
-        return defaults;
+        // If primary file is temporarily unavailable, recover from backup first.
+        try {
+          const rawBak = await fs.readFile(SETTINGS_FILE_BAK, 'utf8');
+          const parsedBak = JSON.parse(rawBak);
+          await this.write(parsedBak);
+          return deepMerge(cloneDefaults(), parsedBak);
+        } catch {
+          const defaults = cloneDefaults();
+          await this.write(defaults);
+          return defaults;
+        }
       }
       if (error instanceof SyntaxError) {
         try {
@@ -312,16 +322,21 @@ class SystemSettingsStore {
     const payload = JSON.stringify(merged, null, 2);
     const tmpPath = buildTmpPath();
     await fs.writeFile(tmpPath, payload, 'utf8');
+
+    // Keep backup copy without removing the active file first.
     try {
-      await fs.rename(SETTINGS_FILE, SETTINGS_FILE_BAK);
+      const current = await fs.readFile(SETTINGS_FILE, 'utf8');
+      await fs.writeFile(SETTINGS_FILE_BAK, current, 'utf8');
     } catch {
-      // ignore if main doesn't exist
+      // ignore if main doesn't exist yet
     }
+
     try {
       await fs.rename(tmpPath, SETTINGS_FILE);
     } catch (error) {
-      if (error?.code === 'ENOENT') {
+      if (error?.code === 'ENOENT' || error?.code === 'EEXIST' || error?.code === 'EPERM') {
         await fs.writeFile(SETTINGS_FILE, payload, 'utf8');
+        await fs.unlink(tmpPath).catch(() => undefined);
       } else {
         throw error;
       }

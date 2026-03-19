@@ -549,6 +549,8 @@ export default function NewLiveClassRoom({ classData, user, enrollmentId, onLeav
           firstName: user.firstName,
           lastName: user.lastName,
           isHandRaised: false,
+          audioOn: micOn,
+          camOn: camOn,
           user: user, // Preserve complete user object with role info
         },
       ])
@@ -701,6 +703,16 @@ export default function NewLiveClassRoom({ classData, user, enrollmentId, onLeav
           )
         )
       });
+
+      socket.on("participant-audio-toggled", ({ userId, audioOn }) => {
+        setParticipants((prev) =>
+          prev.map((p) =>
+            p.id === userId
+              ? { ...p, audioOn: Boolean(audioOn) }
+              : p,
+          ),
+        )
+      })
 
       socket.on("participant-speaking-level", ({ userId, level }) => {
         console.log("User speaking leve: ", level)
@@ -869,6 +881,23 @@ export default function NewLiveClassRoom({ classData, user, enrollmentId, onLeav
   }, [micOn])
 
   useEffect(() => {
+    if (!joined || !socketRef.current || !resolvedRoomId) return
+
+    socketRef.current.emit("toggle-audio", {
+      roomId: resolvedRoomId,
+      audioOn: micOn,
+    })
+
+    setParticipants((prev) =>
+      prev.map((p) =>
+        p.id === user?.id
+          ? { ...p, audioOn: micOn }
+          : p,
+      ),
+    )
+  }, [joined, micOn, resolvedRoomId, user?.id])
+
+  useEffect(() => {
     if (!localStreamRef.current) return
     localStreamRef.current.getVideoTracks().forEach((t) => (t.enabled = camOn));
     
@@ -897,8 +926,9 @@ export default function NewLiveClassRoom({ classData, user, enrollmentId, onLeav
       const screenTrack = screenStream.getVideoTracks()[0]
 
       // Notify others about screen sharing start
-      if (socketRef.current) {
-        socketRef.current.emit("start-screen-share", { roomId })
+      const activeRoomId = roomIdRef.current || resolvedRoomId || roomId
+      if (socketRef.current && activeRoomId) {
+        socketRef.current.emit("start-screen-share", { roomId: activeRoomId })
       }
 
       Object.values(peersRef.current).forEach((pc:any) => {
@@ -996,8 +1026,9 @@ export default function NewLiveClassRoom({ classData, user, enrollmentId, onLeav
     console.log("🛑 Stopping screen share...")
 
     // Notify others about screen sharing stop
-    if (socketRef.current) {
-      socketRef.current.emit("stop-screen-share", { roomId })
+    const activeRoomId = roomIdRef.current || resolvedRoomId || roomId
+    if (socketRef.current && activeRoomId) {
+      socketRef.current.emit("stop-screen-share", { roomId: activeRoomId })
     }
 
     const camTrack = getLocalStream().getVideoTracks()[0]
@@ -1020,9 +1051,11 @@ export default function NewLiveClassRoom({ classData, user, enrollmentId, onLeav
   const handleStudentAction = (action: string, targetUserId: string) => {
     console.log(user, "USer in handle Student Action")
     if (!isInstructor(user) || !socketRef.current) return
+    const activeRoomId = roomIdRef.current || resolvedRoomId || roomId
+    if (!activeRoomId) return
     console.log(`Instructor action: ${action} for user ${targetUserId}`)
     socketRef.current.emit("instructor-action", {
-      roomId,
+      roomId: activeRoomId,
       action,
       targetUserId,
     })
@@ -1049,29 +1082,33 @@ export default function NewLiveClassRoom({ classData, user, enrollmentId, onLeav
   }
 
   const handleLeave = () => {
-    console.log("👋 Leaving room:", roomId)
+    const activeRoomId = roomIdRef.current || resolvedRoomId || roomId
+    console.log("👋 Leaving room:", activeRoomId)
     setJoined(false)
-    onLeave()
     if (socketRef.current) {
-      socketRef.current.emit("leave", { roomId })
+      socketRef.current.emit("leave", { roomId: activeRoomId })
     }
+    onLeave()
   }
 
   const handleSendMessage = (message: string) => {
-    if (socketRef.current && message.trim()) {
+    const activeRoomId = roomIdRef.current || resolvedRoomId || roomId
+    if (socketRef.current && activeRoomId && message.trim()) {
       socketRef.current.emit("send-message", {
-        roomId,
+        roomId: activeRoomId,
         message: message.trim(),
       })
     }
   }
 
   const toggleHandRaise = () => {
+    const activeRoomId = roomIdRef.current || resolvedRoomId || roomId
+    if (!activeRoomId) return
     if (socketRef.current) {
       if (isHandRaised) {
-        socketRef.current.emit("lower-hand", { roomId })
+        socketRef.current.emit("lower-hand", { roomId: activeRoomId })
       } else {
-        socketRef.current.emit("raise-hand", { roomId })
+        socketRef.current.emit("raise-hand", { roomId: activeRoomId })
       }
       setIsHandRaised(!isHandRaised)
     }

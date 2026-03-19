@@ -179,13 +179,16 @@ export default function VideoTile({
   const displayName = isLocal ? "You" : getDisplayName(user)
   const showVideoOffIcon = !camOn
   const normalizedLevel = Math.max(0, Math.min(1, speakingLevel / 80))
-  const isActivelySpeaking = isSpeaking || normalizedLevel > 0.08
-  const glowStyle = isActivelySpeaking
+  const isActivelySpeaking = isSpeaking || normalizedLevel > 0.04
+  const speakingHighlightStyle = isActivelySpeaking
     ? {
-        border: `2px solid rgba(255,199,0,${(0.7 + normalizedLevel * 0.3).toFixed(2)})`,
-        boxShadow: `0 0 0 1px rgba(255,199,0,${(0.6 + normalizedLevel * 0.3).toFixed(2)}), 0 0 24px rgba(255,199,0,${(0.2 + normalizedLevel * 0.35).toFixed(2)})`,
+        border: `3px solid rgba(255,213,74,${(0.85 + normalizedLevel * 0.15).toFixed(2)})`,
+        boxShadow: `0 0 0 1px rgba(255,213,74,${(0.75 + normalizedLevel * 0.2).toFixed(2)}), 0 0 28px rgba(255,213,74,${(0.3 + normalizedLevel * 0.35).toFixed(2)})`,
       }
-    : { border: "2px solid transparent" }
+    : {
+        border: "2px solid transparent",
+        boxShadow: "none",
+      }
 
   // Avatar size based on tile size - exactly like Google Meet
   const getAvatarSize = () => {
@@ -203,9 +206,18 @@ export default function VideoTile({
         },
         className
       )}
-      style={glowStyle}
+      style={speakingHighlightStyle}
       onDoubleClick={() => onZoomToggle?.(!isZoomed)}
     >
+      {isActivelySpeaking && (
+        <div
+          className="absolute inset-0 rounded-xl pointer-events-none"
+          style={{
+            boxShadow: "inset 0 0 0 2px rgba(255,213,74,0.95), 0 0 20px rgba(255,213,74,0.35)",
+          }}
+        />
+      )}
+
       {/* Video */}
       {stream && camOn && (
         <video

@@ -375,13 +375,18 @@ export default function LiveClassesPage() {
                               if (!targetRoomId) return
                               router.push(`/classroom/${targetRoomId}`)
                             }}
-                            className="px-4 py-2 text-white rounded-lg transition-colors"
-                            style={{ backgroundColor: 'var(--color-error)' }}
+                            className="px-4 py-2 rounded-lg transition-colors"
+                            style={{ 
+                              backgroundColor: 'var(--color-error)',
+                              color: 'var(--color-btn-error-text, #ffffff)'
+                            }}
                             onMouseEnter={(e) => {
-                              e.currentTarget.style.backgroundColor = 'var(--color-error-hover)'
+                              e.currentTarget.style.backgroundColor = 'var(--color-error-hover, var(--color-error))'
+                              e.currentTarget.style.color = 'var(--color-btn-error-text, #ffffff)'
                             }}
                             onMouseLeave={(e) => {
                               e.currentTarget.style.backgroundColor = 'var(--color-error)'
+                              e.currentTarget.style.color = 'var(--color-btn-error-text, #ffffff)'
                             }}
                           >
                             Join Live

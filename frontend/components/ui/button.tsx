@@ -24,13 +24,13 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         case 'destructive':
           return {
             backgroundColor: 'var(--color-error)',
-            color: 'white',
+            color: 'var(--color-btn-error-text, #ffffff)',
             border: 'none'
           }
         case 'success':
           return {
             backgroundColor: 'var(--color-success)',
-            color: 'white',
+            color: 'var(--color-btn-success-text, #ffffff)',
             border: 'none'
           }
         case 'outline':
@@ -61,9 +61,15 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         case 'secondary':
           return { backgroundColor: 'var(--color-secondary-hover)' }
         case 'destructive':
-          return { backgroundColor: 'var(--color-error-hover)' }
+          return { 
+            backgroundColor: 'var(--color-error-hover, var(--color-error))',
+            color: 'var(--color-btn-error-text, #ffffff)'
+          }
         case 'success':
-          return { backgroundColor: 'var(--color-success-hover)' }
+          return { 
+            backgroundColor: 'var(--color-success-hover, var(--color-success))',
+            color: 'var(--color-btn-success-text, #ffffff)'
+          }
         case 'outline':
           return { backgroundColor: 'var(--color-surface-hover)' }
         case 'ghost':

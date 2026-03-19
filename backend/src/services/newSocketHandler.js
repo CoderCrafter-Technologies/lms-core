@@ -118,6 +118,29 @@ class SocketHandler {
         });
       });
 
+      socket.on('toggle-audio', ({ roomId, audioOn }) => {
+        const room = this.liveClasses.get(roomId);
+        if (!room) {
+          console.log(`Room ${roomId} not found for audio toggle`);
+          return;
+        }
+
+        const userId = room.socketToUserId.get(socket.id);
+        if (!userId || !room.participants.has(userId)) {
+          console.log(`User not found in room ${roomId} for audio toggle`);
+          return;
+        }
+
+        const participant = room.participants.get(userId);
+        participant.isAudioEnabled = Boolean(audioOn);
+        room.lastActivity = new Date();
+
+        this.io.to(roomId).emit('participant-audio-toggled', {
+          userId,
+          audioOn: Boolean(audioOn)
+        });
+      });
+
       socket.on('speaking-level', ({ roomId, level }) => {
         const room = this.liveClasses.get(roomId);
         if (!room) return;
@@ -638,6 +661,14 @@ class SocketHandler {
               userId: targetUserId,
               socketId: targetParticipant.socketId,
               user: targetParticipant.user
+            });
+          }
+
+          if (action === 'mute' || action === 'unmute') {
+            targetParticipant.isAudioEnabled = action === 'unmute';
+            this.io.to(roomId).emit('participant-audio-toggled', {
+              userId: targetUserId,
+              audioOn: action === 'unmute'
             });
           }
           break;

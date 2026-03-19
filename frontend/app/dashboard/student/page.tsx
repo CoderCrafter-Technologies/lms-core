@@ -336,13 +336,15 @@ export default function StudentDashboard() {
                         className="w-full sm:w-auto justify-center gap-2"
                         style={{ 
                           backgroundColor: 'var(--color-error)',
-                          color: 'white'
+                          color: 'var(--color-btn-error-text, #ffffff)'
                         }}
                         onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = 'var(--color-error-hover)'
+                          e.currentTarget.style.backgroundColor = 'var(--color-error-hover, var(--color-error))'
+                          e.currentTarget.style.color = 'var(--color-btn-error-text, #ffffff)'
                         }}
                         onMouseLeave={(e) => {
                           e.currentTarget.style.backgroundColor = 'var(--color-error)'
+                          e.currentTarget.style.color = 'var(--color-btn-error-text, #ffffff)'
                         }}
                       >
                         <Play className="w-4 h-4" />

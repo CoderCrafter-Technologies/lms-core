@@ -93,6 +93,7 @@ export default function ClassroomPage() {
   const [selectedClass, setSelectedClass] = useState<LiveClass | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isLeaving, setIsLeaving] = useState(false)
   const dashboardRoute = getDashboardRouteForRole(user?.role || user)
 
   const initializedRef = useRef(false)
@@ -185,7 +186,7 @@ export default function ClassroomPage() {
   }, [user, roomId, router, authLoading])
 
   const handleLeave = () => {
-    setSelectedClass(null)
+    setIsLeaving(true)
     router.replace(dashboardRoute)
   }
 
@@ -201,10 +202,10 @@ export default function ClassroomPage() {
   }
 
   // Show loading screens
-  if (authLoading || loading) {
+  if (authLoading || loading || isLeaving) {
     return (
       <TeamsLoadingScreen
-        message={authLoading ? "Checking authentication..." : "Joining classroom..."}
+        message={isLeaving ? "Leaving classroom..." : authLoading ? "Checking authentication..." : "Joining classroom..."}
         subMessage="Please wait while we connect you"
       />
     )

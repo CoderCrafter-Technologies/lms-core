@@ -16,7 +16,7 @@ RUN printf "registry=https://registry.npmjs.org/\\n" > /tmp/npmrc \
 COPY . .
 RUN mkdir -p public
 
-ARG NEXT_PUBLIC_API_URL=http://localhost:5000/api
+ARG NEXT_PUBLIC_API_URL=/api
 ARG NEXT_PUBLIC_SOCKET_URL=http://localhost:5000
 ARG NEXT_INTERNAL_API_ORIGIN=http://backend:5000
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}

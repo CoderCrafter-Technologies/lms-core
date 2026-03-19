@@ -19,29 +19,28 @@ const resolveApiBaseUrl = () => {
     return envBase || 'http://localhost:5001/api';
   }
 
-  const { origin, port, protocol, hostname } = window.location;
-  const isDefaultPort = !port || port === '80' || port === '443';
-
-  if (isDefaultPort) {
-    return `${origin}/api`;
-  }
+  const { origin, hostname } = window.location;
+  const sameOriginApiBase = `${origin}/api`;
 
   if (envBase) {
     try {
       const parsed = new URL(envBase);
-      const isLocalHost =
+      const isEnvLocalHost =
         ['localhost', '127.0.0.1', '0.0.0.0'].includes(parsed.hostname) &&
         !['localhost', '127.0.0.1', '0.0.0.0'].includes(hostname);
-      if (!isLocalHost) {
+      if (!isEnvLocalHost) {
         return envBase;
       }
+      return sameOriginApiBase;
     } catch {
+      if (envBase.startsWith('/')) {
+        return `${origin}${envBase}`;
+      }
       return envBase;
     }
   }
 
-  const fallbackProtocol = protocol || 'http:';
-  return `${fallbackProtocol}//${hostname}:5000/api`;
+  return sameOriginApiBase;
 };
 
 let apiBaseOverride: string | null = null;

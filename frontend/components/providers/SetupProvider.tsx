@@ -28,6 +28,7 @@ type SetupContextType = {
 
 const SetupContext = createContext<SetupContextType | undefined>(undefined)
 const SETTINGS_CACHE_KEY = 'lms-public-settings'
+const STATUS_CACHE_KEY = 'lms-setup-completed'
 
 const isPlainObject = (value: unknown): value is Record<string, any> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -66,6 +67,19 @@ export function SetupProvider({ children }: { children: React.ReactNode }) {
       return
     }
     localStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify(nextSettings))
+  }, [])
+
+  const persistCompletedCache = useCallback((value: boolean) => {
+    if (typeof window === 'undefined') return
+    localStorage.setItem(STATUS_CACHE_KEY, value ? '1' : '0')
+  }, [])
+
+  const readCompletedCache = useCallback((): boolean | null => {
+    if (typeof window === 'undefined') return null
+    const raw = localStorage.getItem(STATUS_CACHE_KEY)
+    if (raw === '1') return true
+    if (raw === '0') return false
+    return null
   }, [])
 
   const applyThemeVars = useCallback((nextSettings: any | null, nextTheme: string) => {
@@ -201,10 +215,11 @@ export function SetupProvider({ children }: { children: React.ReactNode }) {
       setCompleted(isCompleted)
       setSettings(nextSettings)
       persistSettingsCache(nextSettings)
+      persistCompletedCache(isCompleted)
     } catch {
       // Keep existing state when refresh fails.
     }
-  }, [persistSettingsCache])
+  }, [persistCompletedCache, persistSettingsCache])
 
   useEffect(() => {
     if (bootstrappedRef.current) return
@@ -221,6 +236,13 @@ export function SetupProvider({ children }: { children: React.ReactNode }) {
               // ignore cache parse errors
             }
           }
+          const cachedCompleted = readCompletedCache()
+          if (typeof cachedCompleted === 'boolean') {
+            setCompleted(cachedCompleted)
+          } else {
+            // True first-run default: route to setup until backend confirms completion.
+            setCompleted(false)
+          }
         }
         const [statusRes, settingsRes] = await Promise.all([
           api.getSetupStatus(),
@@ -233,10 +255,16 @@ export function SetupProvider({ children }: { children: React.ReactNode }) {
         const nextSettings = settingsRes?.data || null
         setSettings(nextSettings)
         persistSettingsCache(nextSettings)
+        persistCompletedCache(isCompleted)
       } catch {
         if (!mounted) return
-        // Fail-open: do not force users into setup wizard on transient API errors.
-        // Keep previous setup state so authenticated app remains reachable.
+        // If backend is unavailable, prefer cached setup status; otherwise assume first-run setup.
+        const cachedCompleted = readCompletedCache()
+        if (typeof cachedCompleted === 'boolean') {
+          setCompleted(cachedCompleted)
+        } else {
+          setCompleted(false)
+        }
       } finally {
         if (mounted) setLoading(false)
       }
@@ -246,7 +274,7 @@ export function SetupProvider({ children }: { children: React.ReactNode }) {
     return () => {
       mounted = false
     }
-  }, [persistSettingsCache])
+  }, [persistCompletedCache, persistSettingsCache, readCompletedCache])
 
   useEffect(() => {
     applyThemeVars(settings, theme)

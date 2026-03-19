@@ -154,9 +154,29 @@ export default function VideoTile({
     return "?"
   }, [])
 
+  const getDisplayName = useCallback((userObj: any) => {
+    if (!userObj) return "Guest"
+
+    const firstName = typeof userObj.firstName === "string" ? userObj.firstName.trim() : ""
+    const lastName = typeof userObj.lastName === "string" ? userObj.lastName.trim() : ""
+    const fullName = `${firstName} ${lastName}`.trim()
+    if (fullName) return fullName
+
+    const candidateName = typeof userObj.name === "string" ? userObj.name.trim() : ""
+    if (candidateName && !candidateName.includes("@")) return candidateName
+
+    const email = typeof userObj.email === "string" ? userObj.email.trim() : ""
+    if (email) {
+      const [localPart] = email.split("@")
+      return localPart || email
+    }
+
+    return "Guest"
+  }, [])
+
   const showAvatar = !camOn || !hasVideo || !isVideoPlaying
   const shouldContain = videoFit === "contain" || (videoFit === "auto" && (isScreenSharing || isZoomed))
-  const displayName = isLocal ? "You" : user?.name || user?.email || "Guest"
+  const displayName = isLocal ? "You" : getDisplayName(user)
   const showVideoOffIcon = !camOn
   const normalizedLevel = Math.max(0, Math.min(1, speakingLevel / 80))
   const isActivelySpeaking = isSpeaking || normalizedLevel > 0.08

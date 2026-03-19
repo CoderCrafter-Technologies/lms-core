@@ -7,6 +7,8 @@ import { api } from '@/lib/api'
 import { Spinner } from '@/components/ui/Spinner'
 import { Building2, Palette, Globe, Database, UserCircle, Mail, ChevronRight, ChevronLeft, Check, Sparkles, Copy } from 'lucide-react'
 
+const STATUS_CACHE_KEY = 'lms-setup-completed'
+
 type SetupForm = {
   institute: {
     name: string
@@ -245,6 +247,9 @@ export default function SetupPage() {
         if (!mounted) return
         const statusRes = statusResult.status === 'fulfilled' ? statusResult.value : null
         if (statusRes?.data?.completed) {
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(STATUS_CACHE_KEY, '1')
+          }
           router.replace('/auth/login')
           return
         }
@@ -841,6 +846,7 @@ export default function SetupPage() {
             branding: payload.branding,
             defaults: payload.defaults
           }))
+          localStorage.setItem(STATUS_CACHE_KEY, '1')
         } catch {
           // ignore local cache errors
         }

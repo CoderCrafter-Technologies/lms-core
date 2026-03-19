@@ -1,6 +1,5 @@
 'use client'
 
-import { useAuth } from '../../../components/providers/AuthProvider'
 import { api } from '@/lib/api'
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -20,11 +19,7 @@ import {
   Loader2
 } from 'lucide-react'
 import { toast } from 'sonner'
-import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
-
-// Dynamically import LiveClassRoom to avoid SSR issues
-const LiveClassRoom = dynamic(() => import('../../../components/LiveClassRoom'), { ssr: false })
 
 interface Enrollment {
   id: string
@@ -65,7 +60,6 @@ interface LiveClass {
 }
 
 export default function StudentDashboard() {
-  const { user } = useAuth()
   const [enrollments, setEnrollments] = useState<Enrollment[]>([])
   const [liveClasses, setLiveClasses] = useState<LiveClass[]>([])
   const [upcomingClasses, setUpcomingClasses] = useState<LiveClass[]>([])
@@ -78,7 +72,6 @@ export default function StudentDashboard() {
     totalHours: 0,
     averageGrade: 0
   })
-  const [selectedClass, setSelectedClass] = useState<LiveClass | null>(null)
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
@@ -157,7 +150,12 @@ export default function StudentDashboard() {
       return
     }
 
-    setSelectedClass(liveClass)
+    const targetRoomId = liveClass.roomId || liveClass.id || (liveClass as any)._id
+    if (!targetRoomId) {
+      toast.error('Class room ID is missing.')
+      return
+    }
+    router.push(`/classroom/${targetRoomId}`)
   }
 
   const canJoinClass = (liveClass: LiveClass) => {
@@ -166,21 +164,6 @@ export default function StudentDashboard() {
     const classEnd = new Date(liveClass.scheduledEndTime)
     const joinAllowedFrom = new Date(classStart.getTime() - 10 * 60 * 1000)
     return now >= joinAllowedFrom && now <= classEnd && liveClass.status !== 'CANCELLED'
-  }
-
-  const leaveLiveClass = () => {
-    setSelectedClass(null)
-  }
-
-  if (selectedClass) {
-    return (
-      <LiveClassRoom
-        classData={selectedClass}
-        user={user}
-        enrollmentId=""
-        onLeave={leaveLiveClass}
-      />
-    )
   }
 
   if (loading) {

@@ -27,9 +27,26 @@ let localStream = null;
 const peersMap = {};
 
 export async function initWebRTC() {
-  console.log("🎥 Requesting local media in webrtc.js...");
-  localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-  console.log("✅ Got local stream in webrtc.js:", localStream);
+  console.log("Requesting local media in webrtc.js...");
+
+  const attempts = [
+    { video: true, audio: true },
+    { video: false, audio: true },
+    { video: true, audio: false },
+  ];
+
+  for (const constraints of attempts) {
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia(constraints);
+      console.log("Got local stream with constraints:", constraints);
+      return localStream;
+    } catch (error) {
+      console.warn("getUserMedia failed for constraints:", constraints, error);
+    }
+  }
+
+  localStream = new MediaStream();
+  console.warn("Falling back to empty local stream (no mic/camera granted).");
   return localStream;
 }
 
@@ -42,17 +59,22 @@ export function createOrGetPeer(peerId, onTrack) {
     return peersMap[peerId].pc;
   }
 
-  console.log("🆕 Creating peer for:", peerId);
+  console.log("Creating peer for:", peerId);
   const pc = new RTCPeerConnection(ICE_SERVERS);
 
-  // add our tracks *once*
-  localStream.getTracks().forEach((track) => {
-    pc.addTrack(track, localStream);
+  const stream = localStream || new MediaStream();
+  stream.getTracks().forEach((track) => {
+    pc.addTrack(track, stream);
   });
+
+  if (stream.getTracks().length === 0) {
+    pc.addTransceiver("audio", { direction: "recvonly" });
+    pc.addTransceiver("video", { direction: "recvonly" });
+  }
 
   pc.ontrack = (event) => {
     const stream = event.streams?.[0];
-    console.log("📺 Remote stream from", peerId, stream);
+    console.log("Remote stream from", peerId, stream);
     if (stream && peersMap[peerId]?.onTrack) {
       peersMap[peerId].onTrack(stream);
     }
@@ -60,7 +82,7 @@ export function createOrGetPeer(peerId, onTrack) {
 
   pc.onicecandidate = (event) => {
     if (event.candidate) {
-      console.log("❄️ Sending ICE candidate to", peerId);
+      console.log("Sending ICE candidate to", peerId);
       getSocket().emit("signal", {
         target: peerId,
         signal: { candidate: event.candidate },
@@ -69,7 +91,7 @@ export function createOrGetPeer(peerId, onTrack) {
   };
 
   pc.onconnectionstatechange = () => {
-    console.log(`🔗 ${peerId} connectionState:`, pc.connectionState);
+    console.log(`${peerId} connectionState:`, pc.connectionState);
   };
 
   peersMap[peerId] = {

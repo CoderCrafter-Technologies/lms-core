@@ -38,8 +38,14 @@ export function initSocket(serverUrl?: string) {
   const resolvedUrl = resolveSocketUrl(serverUrl);
   if (!socket) {
     socket = io(resolvedUrl, {
-      transports: ["websocket"],
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 500,
+      timeout: 20000,
     });
+  } else if (!socket.connected) {
+    socket.connect();
   }
   consumers += 1;
   return socket;

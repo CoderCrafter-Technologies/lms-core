@@ -235,7 +235,7 @@ export default function MonitoringPage() {
       ? initSocket(process.env.NEXT_PUBLIC_SOCKET_URL)
       : initSocket()
 
-    socket.emit('register-user', { userId: user?.id })
+    socket.emit('register-user', { userId: user?.id || (user as any)?._id })
 
     const handleLiveRecord = (record: MonitoringRecord) => {
       if (!recordMatchesFilters(record)) return
@@ -248,7 +248,7 @@ export default function MonitoringPage() {
       socket.off('monitoring:record', handleLiveRecord)
       releaseSocket()
     }
-  }, [canAccessMonitoring, mode, user?.id, filters.category, filters.level, filters.includeArchived, filters.source, filters.search, filters.from, filters.to])
+  }, [canAccessMonitoring, mode, user?.id, (user as any)?._id, filters.category, filters.level, filters.includeArchived, filters.source, filters.search, filters.from, filters.to])
 
   const savePolicy = async () => {
     try {

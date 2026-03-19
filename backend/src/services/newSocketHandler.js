@@ -13,9 +13,22 @@ class SocketHandler {
     this.setupEventHandlers();
   }
 
+  sanitizeUserId(value) {
+    if (value === undefined || value === null) return null;
+    const normalized = String(value).trim();
+    if (!normalized) return null;
+    const lowered = normalized.toLowerCase();
+    if (lowered === 'undefined' || lowered === 'null' || lowered === 'nan') return null;
+    return normalized;
+  }
+
   normalizeUserId(user = {}, socketUserId = null) {
-    const candidate = socketUserId || user?.id || user?._id || null;
-    return candidate ? String(candidate) : null;
+    return (
+      this.sanitizeUserId(socketUserId) ||
+      this.sanitizeUserId(user?.id) ||
+      this.sanitizeUserId(user?._id) ||
+      null
+    );
   }
 
   async resolveCanonicalRoom({ roomId, classId }) {
@@ -54,7 +67,6 @@ class SocketHandler {
       console.log('User connected:', socket.id);
 
       socket.on('register-user', ({ userId }) => {
-        if (!userId) return;
         this.registerSocketUser(socket, userId);
       });
 
@@ -186,7 +198,8 @@ class SocketHandler {
   }
 
   registerSocketUser(socket, userId) {
-    const normalizedUserId = userId.toString();
+    const normalizedUserId = this.sanitizeUserId(userId);
+    if (!normalizedUserId) return;
     this.socketToUser.set(socket.id, normalizedUserId);
 
     if (!this.userSockets.has(normalizedUserId)) {

@@ -10,9 +10,98 @@ const escapeHtml = (value = '') =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
 
-const appUrl = () => {
-  const raw = String(process.env.FRONTEND_URL || 'http://localhost:3000').split(',')[0] || 'http://localhost:3000';
-  return raw.trim().replace(/\/+$/, '');
+const DEFAULT_FRONTEND_URL = 'http://localhost:3000';
+
+const stripTrailingSlashes = (value = '') => String(value || '').trim().replace(/\/+$/, '');
+
+const isLocalHostname = (hostname = '') => {
+  const host = String(hostname || '').trim().toLowerCase();
+  return host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0' || host === '::1';
+};
+
+const normalizeUrl = (rawValue, { preferHttps = false } = {}) => {
+  const raw = String(rawValue || '').trim();
+  if (!raw) return '';
+  const withProtocol = /^https?:\/\//i.test(raw)
+    ? raw
+    : `${preferHttps ? 'https' : 'http'}://${raw}`;
+  try {
+    const parsed = new URL(withProtocol);
+    return stripTrailingSlashes(parsed.toString());
+  } catch {
+    return '';
+  }
+};
+
+const isLoopbackUrl = (urlValue = '') => {
+  try {
+    const hostname = new URL(urlValue).hostname;
+    return isLocalHostname(hostname);
+  } catch {
+    return false;
+  }
+};
+
+const getEnvFrontendUrlCandidates = () => {
+  const candidates = [];
+  const rawLists = [
+    process.env.PUBLIC_APP_URL,
+    process.env.APP_BASE_URL,
+    process.env.FRONTEND_PUBLIC_URL,
+    process.env.FRONTEND_URL
+  ]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+
+  rawLists.forEach((raw) => {
+    raw.split(',').map((entry) => entry.trim()).filter(Boolean).forEach((entry) => {
+      const normalized = normalizeUrl(entry, { preferHttps: false });
+      if (normalized) candidates.push(normalized);
+    });
+  });
+
+  return candidates;
+};
+
+const resolveAppUrl = async () => {
+  const settings = await systemSettingsStore.getSetupSettings().catch(() => null);
+  const setupWebsite = normalizeUrl(settings?.institute?.website, { preferHttps: false });
+
+  const savedDomains = (settings?.customDomains || [])
+    .filter((item) => item?.domain && (item?.savedAt || item?.verifiedAt || item?.status === 'verified'))
+    .sort((a, b) => String(b?.savedAt || b?.verifiedAt || '').localeCompare(String(a?.savedAt || a?.verifiedAt || '')));
+
+  const savedDomain = String(savedDomains[0]?.domain || '').trim().toLowerCase();
+  if (savedDomain) {
+    if (setupWebsite) {
+      try {
+        const websiteHost = new URL(setupWebsite).hostname.toLowerCase();
+        if (websiteHost === savedDomain) {
+          return setupWebsite;
+        }
+      } catch {
+        // ignore malformed website and continue with saved domain
+      }
+    }
+    return normalizeUrl(savedDomain, { preferHttps: true }) || `https://${savedDomain}`;
+  }
+
+  if (setupWebsite) {
+    return setupWebsite;
+  }
+
+  const envCandidates = getEnvFrontendUrlCandidates();
+  const nonLoopbackCandidate = envCandidates.find((candidate) => !isLoopbackUrl(candidate));
+  if (nonLoopbackCandidate) {
+    return nonLoopbackCandidate;
+  }
+
+  const firstCandidate = envCandidates[0];
+  if (firstCandidate) {
+    return firstCandidate;
+  }
+
+  return DEFAULT_FRONTEND_URL;
 };
 
 const wrapEmail = (title, bodyHtml) => `
@@ -31,6 +120,7 @@ class EmailService {
 
   async sendWelcomeEmail(user, password) {
     if (!user?.email) return { success: false, skipped: true };
+    const frontendUrl = await resolveAppUrl();
     return this.sendRaw({
       to: user.email,
       subject: 'Welcome to LMS - Your account is ready',
@@ -41,7 +131,7 @@ class EmailService {
          <p><strong>Email:</strong> ${escapeHtml(user.email)}<br/>
          <strong>Temporary password:</strong> ${escapeHtml(password || '')}</p>
          <p>Please change your password after first login.</p>
-         <p><a href="${appUrl()}/auth/login">Go to login</a></p>`
+         <p><a href="${frontendUrl}/auth/login">Go to login</a></p>`
       )
     });
   }
@@ -52,6 +142,7 @@ class EmailService {
 
   async sendBatchEnrollmentEmail(user, batch, course) {
     if (!user?.email) return { success: false, skipped: true };
+    const frontendUrl = await resolveAppUrl();
     return this.sendRaw({
       to: user.email,
       subject: `Enrollment confirmed: ${course?.title || 'Course'}`,
@@ -60,7 +151,7 @@ class EmailService {
         `<p>Hello ${escapeHtml(user.firstName || '')},</p>
          <p>You are enrolled in <strong>${escapeHtml(course?.title || '')}</strong>.</p>
          <p><strong>Batch:</strong> ${escapeHtml(batch?.name || '')}</p>
-         <p><a href="${appUrl()}/dashboard">Open dashboard</a></p>`
+         <p><a href="${frontendUrl}/dashboard">Open dashboard</a></p>`
       )
     });
   }
@@ -69,9 +160,10 @@ class EmailService {
     const email = typeof userOrEmail === 'string' ? userOrEmail : userOrEmail?.email;
     const firstName = typeof userOrEmail === 'string' ? '' : (userOrEmail?.firstName || '');
     if (!email) return { success: false, skipped: true };
+    const frontendUrl = await resolveAppUrl();
 
     if (typeof tokenOrPayload === 'string') {
-      const resetUrl = `${appUrl()}/auth/reset-password?token=${encodeURIComponent(tokenOrPayload)}`;
+      const resetUrl = `${frontendUrl}/auth/reset-password?token=${encodeURIComponent(tokenOrPayload)}`;
       return this.sendRaw({
         to: email,
         subject: 'Password reset requested',
@@ -87,7 +179,7 @@ class EmailService {
 
     const payload = tokenOrPayload || {};
     if (payload.token && payload.otp) {
-      const resetUrl = `${appUrl()}/auth/reset-password?token=${encodeURIComponent(String(payload.token))}`;
+      const resetUrl = `${frontendUrl}/auth/reset-password?token=${encodeURIComponent(String(payload.token))}`;
       return this.sendRaw({
         to: email,
         subject: payload.subject || 'Password reset requested',
@@ -137,6 +229,7 @@ class EmailService {
   async sendClassReminderEmail(user, liveClass, batch, course) {
     if (!user?.email) return { success: false, skipped: true };
     const when = liveClass?.scheduledStartTime ? new Date(liveClass.scheduledStartTime).toLocaleString() : '';
+    const frontendUrl = await resolveAppUrl();
     return this.sendRaw({
       to: user.email,
       subject: `Class starts soon: ${liveClass?.title || 'Live class'}`,
@@ -147,7 +240,7 @@ class EmailService {
          <p><strong>Course:</strong> ${escapeHtml(course?.title || '')}<br/>
          <strong>Batch:</strong> ${escapeHtml(batch?.name || '')}<br/>
          <strong>Time:</strong> ${escapeHtml(when)}</p>
-         <p><a href="${appUrl()}/dashboard/live-classes">Join class</a></p>`
+         <p><a href="${frontendUrl}/dashboard/live-classes">Join class</a></p>`
       )
     });
   }
@@ -166,6 +259,7 @@ class EmailService {
   }
 
   async sendCertificateIssued(payload) {
+    const frontendUrl = await resolveAppUrl();
     return this.sendRaw({
       to: payload.studentEmail,
       subject: `Certificate issued: ${payload.courseName || 'Course'}`,
@@ -173,7 +267,7 @@ class EmailService {
         'Certificate Issued',
         `<p>Hello ${escapeHtml(payload.studentName || '')},</p>
          <p>Your certificate is ready for <strong>${escapeHtml(payload.courseName || '')}</strong>.</p>
-         <p><a href="${escapeHtml(payload.certificateUrl || appUrl())}">View certificate</a></p>`
+         <p><a href="${escapeHtml(payload.certificateUrl || frontendUrl)}">View certificate</a></p>`
       )
     });
   }

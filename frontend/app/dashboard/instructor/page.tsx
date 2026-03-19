@@ -1,6 +1,5 @@
 ﻿'use client'
 
-import { useAuth } from '../../../components/providers/AuthProvider'
 import { api } from '@/lib/api'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -18,10 +17,7 @@ import {
   AcademicCapIcon,
 } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
-import dynamic from 'next/dynamic'
 import RecentClassStatsCard from '@/components/attendance/RecentClassStatsCard'
-
-const LiveClassRoom = dynamic(() => import('../../../components/LiveClassRoom'), { ssr: false })
 
 type Batch = {
   id: string
@@ -46,14 +42,12 @@ type LiveClass = {
 }
 
 export default function InstructorDashboard() {
-  const { user } = useAuth()
   const router = useRouter()
 
   const [myBatches, setMyBatches] = useState<Batch[]>([])
   const [todayClasses, setTodayClasses] = useState<LiveClass[]>([])
   const [upcomingClasses, setUpcomingClasses] = useState<LiveClass[]>([])
   const [liveClasses, setLiveClasses] = useState<LiveClass[]>([])
-  const [selectedClass, setSelectedClass] = useState<LiveClass | null>(null)
   const [loading, setLoading] = useState(true)
 
   const [stats, setStats] = useState({
@@ -140,22 +134,12 @@ export default function InstructorDashboard() {
   }
 
   const startLiveClass = (liveClass: LiveClass) => {
-    setSelectedClass(liveClass)
-  }
-
-  const leaveLiveClass = () => {
-    setSelectedClass(null)
-  }
-
-  if (selectedClass) {
-    return (
-      <LiveClassRoom
-        classData={selectedClass}
-        user={user}
-        enrollmentId=""
-        onLeave={leaveLiveClass}
-      />
-    )
+    const targetRoomId = liveClass?.roomId || liveClass?.id || (liveClass as any)?._id
+    if (!targetRoomId) {
+      toast.error('Class room ID is missing.')
+      return
+    }
+    router.push(`/classroom/${targetRoomId}`)
   }
 
   if (loading) {

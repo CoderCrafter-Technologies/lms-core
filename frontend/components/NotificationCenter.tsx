@@ -45,7 +45,7 @@ export function NotificationCenterInner({ mode = 'fixed' }: NotificationCenterPr
   const [notificationPrefs, setNotificationPrefs] = useState<{ browserPushEnabled?: boolean }>({})
   const panelRef = useRef<HTMLDivElement>(null)
 
-  const userId = useMemo(() => user?.id, [user])
+  const userId = useMemo(() => user?.id || (user as any)?._id, [user])
 
   const refreshNotifications = async () => {
     if (!userId) return

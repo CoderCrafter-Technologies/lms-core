@@ -24,7 +24,7 @@ import {
   HandRaisedIcon as HandRaisedIconSolid,
 } from "@heroicons/react/24/solid"
 import VideoGrid from "./VideoGrid"
-import { initSocket } from "@/lib/services/socket"
+import { initSocket, releaseSocket } from "@/lib/services/socket"
 import {
   initWebRTC,
   getLocalStream,
@@ -303,6 +303,7 @@ const TeamsParticipantsPanel = ({
   onDisconnectStudent?: (userId: string) => void
 }) => {
   const isUserInstructor = isInstructor(user)
+  const currentUserId = user?.id || user?._id ? String(user?.id || user?._id) : null
 
   const getParticipantInitials = (participant: Participant) => {
     return `${participant.firstName?.charAt(0) || ""}${participant.lastName?.charAt(0) || ""}`.toUpperCase()
@@ -359,7 +360,7 @@ const TeamsParticipantsPanel = ({
                   <span className="text-sm font-medium text-[var(--color-text)] truncate">
                     {participant.name}
                   </span>
-                  {participant.id === user.id && (
+                  {participant.id === currentUserId && (
                     <span className="text-xs px-1.5 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-400/30">You</span>
                   )}
                 </div>
@@ -381,7 +382,7 @@ const TeamsParticipantsPanel = ({
               </div>
 
               {/* Actions for Instructor */}
-              {isUserInstructor && participant.id !== user.id && (
+              {isUserInstructor && participant.id !== currentUserId && (
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
                     onClick={() => onMuteStudent?.(participant.id)}
@@ -442,6 +443,7 @@ export default function NewLiveClassRoom({ classData, user, enrollmentId, onLeav
   const participantsRef = useRef(participants)
   const voiceCleanupRef = useRef<null | (() => void)>(null)
   const resolvedRoomId = classData?.roomId || (classData?.id ? `cls_${classData.id}` : classData?._id ? `cls_${classData._id}` : null)
+  const resolvedCurrentUserId = user?.id || user?._id ? String(user?.id || user?._id) : null
 
   useEffect(() => {
     if (!classData) return
@@ -510,6 +512,11 @@ export default function NewLiveClassRoom({ classData, user, enrollmentId, onLeav
       onLeave()
       return
     }
+    if (!resolvedCurrentUserId) {
+      toast.error("Unable to identify your user account. Please sign in again.")
+      onLeave()
+      return
+    }
 
     console.log("🔌 Joining room:", resolvedRoomId)
     const socket = process.env.NEXT_PUBLIC_SOCKET_URL ? initSocket(process.env.NEXT_PUBLIC_SOCKET_URL) : initSocket()
@@ -518,6 +525,16 @@ export default function NewLiveClassRoom({ classData, user, enrollmentId, onLeav
       // Get local cam/mic with initial preferences
       const stream = await initWebRTC()
       localStreamRef.current = stream
+
+      if (!socket.connected) {
+        await new Promise<void>((resolve) => {
+          const timer = setTimeout(() => resolve(), 5000)
+          socket.once("connect", () => {
+            clearTimeout(timer)
+            resolve()
+          })
+        })
+      }
 
       // Apply pre-join preferences immediately
       if (stream) {
@@ -539,55 +556,83 @@ export default function NewLiveClassRoom({ classData, user, enrollmentId, onLeav
       }
 
 
-      // Add current user to participants
-      setParticipants((prev) => [
-        ...prev,
-        {
-          id: user.id, // Use userId as primary ID
-          socketId: socket.id, // Store socketId separately
-          name: `${user.firstName} ${user.lastName}`,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          isHandRaised: false,
-          audioOn: micOn,
-          camOn: camOn,
-          user: user, // Preserve complete user object with role info
-        },
-      ])
+      socket.emit("register-user", { userId: resolvedCurrentUserId })
 
-      // Socket event handlers remain the same as your original
+      // Add current user to participants
+      setParticipants((prev) => {
+        const existing = prev.find((participant) => participant.id === resolvedCurrentUserId)
+        if (existing) {
+          return prev.map((participant) =>
+            participant.id === resolvedCurrentUserId
+              ? {
+                  ...participant,
+                  socketId: socket.id || participant.socketId,
+                  name: `${user.firstName} ${user.lastName}`,
+                  firstName: user.firstName,
+                  lastName: user.lastName,
+                  audioOn: micOn,
+                  camOn,
+                  user,
+                }
+              : participant,
+          )
+        }
+        return [
+          ...prev,
+          {
+            id: resolvedCurrentUserId,
+            socketId: socket.id || "",
+            name: `${user.firstName} ${user.lastName}`,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            isHandRaised: false,
+            audioOn: micOn,
+            camOn,
+            user,
+          },
+        ]
+      })
+
       socket.on("participant-joined", async ({ userId, user: peerUser, socketId }) => {
-        console.log("👤 Participant joined:", userId, "with socket:", socketId)
-        // Add to participants list using userId as primary ID
+        console.log("Participant joined:", userId, "with socket:", socketId)
+        if (!socketId || socketId === socket.id) return
+
+        const normalizedPeerUserId = userId ? String(userId) : null
+        if (!normalizedPeerUserId) return
+
         setParticipants((prev) => {
-          const existing = prev.find((p) => p.id === userId)
+          const existing = prev.find((participant) => participant.id === normalizedPeerUserId)
+          const peerFirstName = peerUser?.firstName || "Participant"
+          const peerLastName = peerUser?.lastName || ""
           if (existing) {
-            return prev.map((p) =>
-              p.id === userId
+            return prev.map((participant) =>
+              participant.id === normalizedPeerUserId
                 ? {
-                    ...p,
-                    socketId: socketId || p.socketId,
-                    firstName: peerUser?.firstName ?? p.firstName,
-                    lastName: peerUser?.lastName ?? p.lastName,
-                    name: `${peerUser?.firstName ?? p.firstName ?? ""} ${peerUser?.lastName ?? p.lastName ?? ""}`.trim() || p.name,
-                    user: peerUser || p.user,
+                    ...participant,
+                    socketId: socketId || participant.socketId,
+                    firstName: peerUser?.firstName ?? participant.firstName,
+                    lastName: peerUser?.lastName ?? participant.lastName,
+                    name:
+                      `${peerUser?.firstName ?? participant.firstName ?? ""} ${peerUser?.lastName ?? participant.lastName ?? ""}`.trim() ||
+                      participant.name,
+                    user: peerUser || participant.user,
                   }
-                : p,
+                : participant,
             )
           }
           return [
             ...prev,
             {
-              id: userId,
-              socketId: socketId,
-              name: `${peerUser.firstName} ${peerUser.lastName}`,
-              firstName: peerUser.firstName,
-              lastName: peerUser.lastName,
+              id: normalizedPeerUserId,
+              socketId,
+              name: `${peerFirstName} ${peerLastName}`.trim(),
+              firstName: peerFirstName,
+              lastName: peerLastName,
               isHandRaised: false,
               camOn: true,
               audioOn: true,
               speakingLevel: 0,
-              user: peerUser, // Preserve complete user object with role info
+              user: peerUser,
             },
           ]
         })
@@ -598,10 +643,13 @@ export default function NewLiveClassRoom({ classData, user, enrollmentId, onLeav
         })
         peersRef.current[socketId] = pc
 
-        // Caller: create offer
-        const offer = await pc.createOffer()
-        await pc.setLocalDescription(offer)
-        socket.emit("signal", { target: socketId, signal: { sdp: pc.localDescription } })
+        // Deterministic initiator: only one side creates offer.
+        const shouldInitiate = !!socket.id && socket.id > socketId
+        if (shouldInitiate && pc.signalingState === "stable") {
+          const offer = await pc.createOffer()
+          await pc.setLocalDescription(offer)
+          socket.emit("signal", { target: socketId, signal: { sdp: pc.localDescription } })
+        }
       })
 
       socket.on("signal", async ({ from, signal }) => {
@@ -666,19 +714,23 @@ export default function NewLiveClassRoom({ classData, user, enrollmentId, onLeav
         setParticipants((prev) => prev.map((p) => (p.id === userId ? { ...p, isHandRaised: false } : p)))
       })
 
-      socket.on("class-joined", ({ participants: existingParticipants, chatHistory }) => {
+      socket.on("class-joined", async ({ participants: existingParticipants = [], chatHistory }) => {
         console.log("✅ Joined class successfully with", existingParticipants.length, "existing participants")
         setMessages(chatHistory || [])
 
-        // Add existing participants to state
-        existingParticipants.forEach((participant) => {
+        // Add existing participants to state + establish WebRTC with deterministic offer side
+        for (const participant of existingParticipants) {
+          const participantUserId = participant?.userId ? String(participant.userId) : null
+          const participantSocketId = participant?.socketId
+          if (!participantUserId || !participantSocketId || participantSocketId === socket.id) continue
+
           setParticipants((prev) => {
-            if (prev.some((p) => p.id === participant.userId)) return prev
+            if (prev.some((p) => p.id === participantUserId)) return prev
             return [
               ...prev,
               {
-                id: participant.userId,
-                socketId: participant.socketId,
+                id: participantUserId,
+                socketId: participantSocketId,
                 name: `${participant.user.firstName} ${participant.user.lastName}`,
                 firstName: participant.user.firstName,
                 lastName: participant.user.lastName,
@@ -687,11 +739,24 @@ export default function NewLiveClassRoom({ classData, user, enrollmentId, onLeav
                 camOn: participant.camOn !== undefined ? participant.camOn : (participant.isVideoEnabled !== undefined ? participant.isVideoEnabled : true),
                 audioOn: participant.audioOn !== undefined ? participant.audioOn : (participant.isAudioEnabled !== undefined ? participant.isAudioEnabled : true),
                 speakingLevel: participant.speakingLevel || 0,
-                user: participant.user, // Preserve complete user object with role info
+                user: participant.user,
               },
             ]
           })
-        })
+
+          const pc = createOrGetPeer(participantSocketId, (remoteStream) => {
+            setPeers((prev) => ({ ...prev, [participantSocketId]: { pc, stream: remoteStream } }))
+            peersRef.current[participantSocketId] = pc
+          })
+          peersRef.current[participantSocketId] = pc
+
+          const shouldInitiate = !!socket.id && socket.id > participantSocketId
+          if (shouldInitiate && pc.signalingState === "stable") {
+            const offer = await pc.createOffer()
+            await pc.setLocalDescription(offer)
+            socket.emit("signal", { target: participantSocketId, signal: { sdp: pc.localDescription } })
+          }
+        }
       });
 
       socket.on("participant-video-toggled", ({ userId, camOn }) => {
@@ -817,7 +882,10 @@ export default function NewLiveClassRoom({ classData, user, enrollmentId, onLeav
       socket.emit("join", {
         roomId: resolvedRoomId,
         classId: classData?.id || classData?._id,
-        user,
+        user: {
+          ...user,
+          id: resolvedCurrentUserId,
+        },
       })
     })()
 
@@ -828,7 +896,8 @@ export default function NewLiveClassRoom({ classData, user, enrollmentId, onLeav
       try {
         if (socketRef.current) {
           socketRef.current.emit("leave", { roomId: resolvedRoomId })
-          socketRef.current.disconnect()
+          releaseSocket()
+          socketRef.current = null
         }
       } catch {}
       localStreamRef.current?.getTracks().forEach((t) => t.stop())
@@ -837,7 +906,7 @@ export default function NewLiveClassRoom({ classData, user, enrollmentId, onLeav
       setPeers({})
       setParticipants([])
     }
-  }, [joined, roomId, resolvedRoomId, classData, user, onLeave])
+  }, [joined, roomId, resolvedRoomId, resolvedCurrentUserId, classData, user, onLeave])
 
   const cleanupPeerConnection = (socketId: string, userId?: string) => {
     console.log(`🧹 Cleaning up peer connection for socket ${socketId}, user ${userId}`)
@@ -890,12 +959,12 @@ export default function NewLiveClassRoom({ classData, user, enrollmentId, onLeav
 
     setParticipants((prev) =>
       prev.map((p) =>
-        p.id === user?.id
+        p.id === resolvedCurrentUserId
           ? { ...p, audioOn: micOn }
           : p,
       ),
     )
-  }, [joined, micOn, resolvedRoomId, user?.id])
+  }, [joined, micOn, resolvedRoomId, resolvedCurrentUserId])
 
   useEffect(() => {
     if (!localStreamRef.current) return
@@ -1136,7 +1205,7 @@ export default function NewLiveClassRoom({ classData, user, enrollmentId, onLeav
     }
   }
 
-  const currentUserSpeakingLevel = participants.find((p) => p.id === user?.id)?.speakingLevel ?? 0
+  const currentUserSpeakingLevel = participants.find((p) => p.id === resolvedCurrentUserId)?.speakingLevel ?? 0
 
   if (showPreJoinModal) {
     return <TeamsPreJoinModal onConfirm={handlePreJoinConfirm} onCancel={handlePreJoinCancel} classData={classData} />
@@ -1443,3 +1512,5 @@ export default function NewLiveClassRoom({ classData, user, enrollmentId, onLeav
     </div>
   )
 }
+
+

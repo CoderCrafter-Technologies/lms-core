@@ -95,6 +95,7 @@ export default function ClassroomPage() {
   const [error, setError] = useState<string | null>(null)
   const [isLeaving, setIsLeaving] = useState(false)
   const dashboardRoute = getDashboardRouteForRole(user?.role || user)
+  const userIdentity = user?.id || (user as any)?._id
 
   const initializedRef = useRef(false)
   const dataFetchedRef = useRef(false)
@@ -221,7 +222,7 @@ export default function ClassroomPage() {
     return (
       <div className="overflow-hidden">
         <NewLiveClassRoom
-          key={`live-class-${selectedClass.id || (selectedClass as any)._id}-${user.id}`}
+          key={`live-class-${selectedClass.id || (selectedClass as any)._id}-${userIdentity}`}
           classData={selectedClass}
           user={user}
           enrollmentId=""

@@ -1194,8 +1194,9 @@ class ApiService {
     });
   }
 
-  async deleteAdminInstructor(instructorId: string) {
-    return this.request(`/instructors/${instructorId}`, {
+  async deleteAdminInstructor(instructorId: string, mode: 'deactivate' | 'delete' = 'deactivate') {
+    const query = new URLSearchParams({ mode }).toString();
+    return this.request(`/admin/instructors/${instructorId}?${query}`, {
       method: 'DELETE',
     });
   }

@@ -31,6 +31,42 @@ const createRefreshToken = (user, sessionId, tokenVersion) => jwt.sign(
 );
 
 const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
+const normalizeResetToken = (value) => {
+  let token = String(value || '').trim();
+  if (!token) return '';
+
+  if (/^https?:\/\//i.test(token)) {
+    try {
+      const parsed = new URL(token);
+      token = String(parsed.searchParams.get('token') || token);
+    } catch {
+      // Keep original token if URL parsing fails.
+    }
+  }
+
+  if (token.includes('token=')) {
+    try {
+      const params = new URLSearchParams(token.replace(/^[^?]*\?/, ''));
+      token = String(params.get('token') || token);
+    } catch {
+      // Keep original token if query parsing fails.
+    }
+  }
+
+  token = token
+    .replace(/^Bearer\s+/i, '')
+    .replace(/^token=/i, '')
+    .replace(/^['"]+|['"]+$/g, '')
+    .trim();
+
+  try {
+    token = decodeURIComponent(token);
+  } catch {
+    // Ignore URI decode errors and keep token as-is.
+  }
+
+  return token.trim();
+};
 const normalizeLegacyGmailEmail = (value) => {
   const email = normalizeEmail(value);
   if (!email.includes('@')) return email;
@@ -958,6 +994,7 @@ router.post('/forgot-password', [
  */
 router.post('/reset-password', [
   body('token').optional().isString(),
+  body('resetToken').optional().isString(),
   body('email').optional().isEmail().customSanitizer(normalizeEmail),
   body('otp').optional().isLength({ min: 6, max: 6 }),
   body('password').isLength({ min: 6 })
@@ -970,7 +1007,7 @@ router.post('/reset-password', [
     });
   }
 
-  const token = String(req.body?.token || '').trim();
+  const token = normalizeResetToken(req.body?.token || req.body?.resetToken);
   const password = String(req.body?.password || '');
   const email = normalizeEmail(req.body?.email);
   const otp = String(req.body?.otp || '').trim();
@@ -1015,7 +1052,22 @@ router.post('/reset-password', [
         });
       }
 
-      throw error;
+      if (error.name === 'JsonWebTokenError') {
+        // Fallback: tolerate malformed/encoded links by matching stored token directly.
+        user = await User.findOne({
+          passwordResetToken: token,
+          passwordResetExpires: { $gt: new Date() }
+        });
+
+        if (!user) {
+          return res.status(400).json({
+            error: 'Invalid or expired token',
+            message: 'Password reset token is invalid or has expired'
+          });
+        }
+      } else {
+        throw error;
+      }
     }
   } else {
     user = await User.findOne({ email });

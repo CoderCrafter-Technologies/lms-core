@@ -18,6 +18,10 @@ build/
 *.db
 *.sqlite
 
+# mobile
+mobile
+
+
 # Logs
 logs
 *.log

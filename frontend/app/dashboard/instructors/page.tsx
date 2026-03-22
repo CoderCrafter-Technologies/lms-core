@@ -159,12 +159,30 @@ export default function InstructorsPage() {
     if (!instructorId || user?.role.name !== 'ADMIN') return
 
     const name = instructor?.name || `${instructor?.firstName || ''} ${instructor?.lastName || ''}`.trim()
-    if (!window.confirm(`Delete instructor ${name || 'this instructor'}? This will deactivate the account.`)) return
+    const actionInput = window.prompt(
+      `Choose action for ${name || 'this instructor'}:\n- Type "deactivate" to disable account\n- Type "delete" for permanent delete`
+    )
+    const action = String(actionInput || '').trim().toLowerCase()
+    if (!action) return
+    if (action !== 'deactivate' && action !== 'delete') {
+      toast.error('Please type either "deactivate" or "delete".')
+      return
+    }
+    const actionMode = action as 'deactivate' | 'delete'
+    if (
+      !window.confirm(
+        actionMode === 'delete'
+          ? `Permanently delete ${name || 'this instructor'}? This cannot be undone.`
+          : `Deactivate ${name || 'this instructor'}? They will not be able to login.`
+      )
+    ) {
+      return
+    }
 
     try {
       setDeletingInstructorId(instructorId)
-      await api.deleteAdminInstructor(instructorId)
-      toast.success('Instructor deleted successfully')
+      await api.deleteAdminInstructor(instructorId, actionMode)
+      toast.success(actionMode === 'delete' ? 'Instructor permanently deleted' : 'Instructor deactivated successfully')
       fetchInstructors()
     } catch (error) {
       console.error('Error deleting instructor:', error)

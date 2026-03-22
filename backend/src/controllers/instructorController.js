@@ -247,23 +247,13 @@ const updateInstructor = asyncHandler(async (req, res) => {
  */
 const deleteInstructor = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  
-  // Check if instructor has any upcoming classes
-  const upcomingClasses = await liveClassRepository.count({
-    instructorId: id,
-    scheduledStartTime: { $gt: new Date() }
+
+  const modeRaw = String(req.query?.mode || req.body?.mode || 'deactivate').trim().toLowerCase();
+  const mode = modeRaw === 'delete' ? 'delete' : 'deactivate';
+
+  const instructor = await userRepository.findById(id, {
+    populate: { path: 'roleId', select: 'name' }
   });
-
-  if (upcomingClasses > 0) {
-    return res.status(400).json({
-      success: false,
-      message: 'Cannot delete instructor with upcoming classes'
-    });
-  }
-
-  // Soft delete by deactivating
-  const instructor = await userRepository.updateById(id, { isActive: false });
-  
   if (!instructor) {
     return res.status(404).json({
       success: false,
@@ -271,9 +261,47 @@ const deleteInstructor = asyncHandler(async (req, res) => {
     });
   }
 
-  res.json({
+  if (String(instructor?.roleId?.name || '').toUpperCase() !== 'INSTRUCTOR') {
+    return res.status(400).json({
+      success: false,
+      message: 'Selected user is not an instructor'
+    });
+  }
+
+  if (mode === 'deactivate') {
+    const updated = await userRepository.updateById(id, { isActive: false });
+
+    return res.json({
+      success: true,
+      message: 'Instructor deactivated successfully',
+      data: updated
+    });
+  }
+
+  const [assignedLiveClasses, assignedBatches] = await Promise.all([
+    liveClassRepository.count({
+      instructorId: id
+    }),
+    batchRepository.count({ instructorId: id })
+  ]);
+
+  if (assignedLiveClasses > 0 || assignedBatches > 0) {
+    return res.status(400).json({
+      success: false,
+      message:
+        'Cannot permanently delete instructor while classes/batches are assigned. Reassign or remove assignments first.',
+      data: {
+        assignedLiveClasses,
+        assignedBatches
+      }
+    });
+  }
+
+  await userRepository.deleteById(id);
+
+  return res.json({
     success: true,
-    message: 'Instructor deactivated successfully'
+    message: 'Instructor permanently deleted successfully'
   });
 });
 

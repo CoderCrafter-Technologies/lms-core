@@ -66,6 +66,25 @@ router.get('/instructors/:id', [
 ], validateRequest, adminController.getInstructorProfile);
 
 /**
+ * @route   PATCH /api/admin/instructors/:id/status
+ * @desc    Activate/deactivate instructor
+ * @access  Admin
+ */
+router.patch('/instructors/:id/status', [
+  param('id').isMongoId().withMessage('Valid instructor ID required'),
+  body('isActive').isBoolean().withMessage('isActive must be a boolean')
+], validateRequest, adminController.updateInstructorStatus);
+
+/**
+ * @route   DELETE /api/admin/instructors/:id
+ * @desc    Deactivate or permanently delete instructor
+ * @access  Admin
+ */
+router.delete('/instructors/:id', [
+  param('id').isMongoId().withMessage('Valid instructor ID required')
+], validateRequest, adminController.deleteInstructorAccount);
+
+/**
  * @route   GET /api/admin/manager-permissions
  * @desc    Get manager permission catalog for provisioning
  * @access  Admin

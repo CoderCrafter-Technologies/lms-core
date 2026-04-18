@@ -1,4 +1,5 @@
 import {
+  AUTH_TOKEN_KEY,
   clearStoredAccessToken,
   clearStoredAuthTokens,
   isJwtExpired,
@@ -84,9 +85,19 @@ class ApiService {
 
   setToken(token: string) {
     this.token = token;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(AUTH_TOKEN_KEY, token);
+      localStorage.setItem('token', token);
+    }
   }
 
   getToken(): string | null {
+    if (!this.token && typeof window !== 'undefined') {
+      const stored = localStorage.getItem(AUTH_TOKEN_KEY) || localStorage.getItem('token');
+      if (stored && !isJwtExpired(stored)) {
+        this.token = stored;
+      }
+    }
     if (!this.token) {
       return null;
     }

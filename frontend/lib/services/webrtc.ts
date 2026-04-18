@@ -29,9 +29,18 @@ const peersMap = {};
 export async function initWebRTC() {
   console.log("Requesting local media in webrtc.js...");
 
+  const mobileVideoConstraints = {
+    facingMode: "user",
+    width: { ideal: 640, max: 1280 },
+    height: { ideal: 360, max: 720 },
+    frameRate: { ideal: 24, max: 30 },
+  };
+
   const attempts = [
+    { video: mobileVideoConstraints, audio: true },
     { video: true, audio: true },
     { video: false, audio: true },
+    { video: mobileVideoConstraints, audio: false },
     { video: true, audio: false },
   ];
 

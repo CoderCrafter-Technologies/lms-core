@@ -140,13 +140,15 @@ const createInstructor = asyncHandler(async (req, res) => {
   const instructorPassword = password || generateRandomPassword();
 
   // Create instructor user
+  const instructorRoleId = instructorRole._id || instructorRole.id;
+
   const instructorData = {
     firstName,
     lastName,
     email,
     phone,
     password: instructorPassword,
-    roleId: instructorRole._id,
+    roleId: instructorRoleId,
     isActive: true,
     isEmailVerified: false,
     mustSetPassword: true,
@@ -486,9 +488,11 @@ const getInstructorStats = asyncHandler(async (req, res) => {
     });
   }
 
-  const totalInstructors = await userRepository.count({ roleId: instructorRole._id });
+  const instructorRoleId = instructorRole._id || instructorRole.id;
+
+  const totalInstructors = await userRepository.count({ roleId: instructorRoleId });
   const activeInstructors = await userRepository.count({ 
-    roleId: instructorRole._id, 
+    roleId: instructorRoleId, 
     isActive: true 
   });
 

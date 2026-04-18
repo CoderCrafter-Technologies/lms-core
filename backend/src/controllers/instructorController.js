@@ -193,13 +193,13 @@ const createInstructor = asyncHandler(async (req, res) => {
     emailStatus: welcomeEmailResult,
     temporaryPassword: welcomeEmailResult?.success ? undefined : instructorPassword,
     data: {
-      id: instructor._id,
+      id: instructor.id || instructor._id,
       firstName: instructor.firstName,
       lastName: instructor.lastName,
       email: instructor.email,
       phone: instructor.phone,
       isActive: instructor.isActive,
-      expertise: instructor.profile.expertise
+      expertise: instructor.profile?.expertise || ''
     }
   });
 });

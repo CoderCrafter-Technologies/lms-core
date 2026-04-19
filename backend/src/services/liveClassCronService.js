@@ -35,6 +35,10 @@ class LiveClassCronService {
       processedCount += scheduledToLiveResult.processed;
       updatedCount += scheduledToLiveResult.updated;
 
+      const scheduledToEndedResult = await this.updateScheduledToEnded(now);
+      processedCount += scheduledToEndedResult.processed;
+      updatedCount += scheduledToEndedResult.updated;
+
       const liveToEndedResult = await this.updateLiveToEnded(now);
       processedCount += liveToEndedResult.processed;
       updatedCount += liveToEndedResult.updated;
@@ -284,6 +288,67 @@ class LiveClassCronService {
     return { processed, updated };
   }
 
+  async updateScheduledToEnded(now) {
+    let processed = 0;
+    let updated = 0;
+    let lastId = null;
+    let hasMore = true;
+
+    while (hasMore) {
+      const query = {
+        status: 'SCHEDULED',
+        scheduledEndTime: { $lte: now }
+      };
+
+      if (lastId) {
+        query._id = { $gt: lastId };
+      }
+
+      const classes = await LiveClass.find(query)
+        .select('_id status scheduledStartTime scheduledEndTime actualEndTime')
+        .sort({ _id: 1 })
+        .limit(this.batchSize)
+        .lean();
+
+      if (classes.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      for (const cls of classes) {
+        try {
+          const updateData = {
+            status: 'ENDED'
+          };
+
+          if (!cls.actualEndTime) {
+            updateData.actualEndTime = now;
+          }
+
+          const updateResult = await LiveClass.updateOne(
+            { _id: cls._id },
+            { $set: updateData }
+          );
+
+          if (updateResult.modifiedCount > 0) {
+            updated += 1;
+          }
+        } catch (error) {
+          logger.error(`Error updating overdue scheduled class ${cls._id}:`, error);
+        }
+      }
+
+      processed += classes.length;
+      lastId = classes[classes.length - 1]._id;
+
+      if (hasMore && classes.length === this.batchSize) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    }
+
+    return { processed, updated };
+  }
+
   async updateLiveToEnded(now) {
     let processed = 0;
     let updated = 0;
@@ -367,7 +432,7 @@ class LiveClassCronService {
           shouldBeEnded: [
             {
               $match: {
-                status: 'LIVE',
+                status: { $in: ['LIVE', 'SCHEDULED'] },
                 scheduledEndTime: { $lte: now }
               }
             },

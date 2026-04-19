@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { ThemeProvider } from '../components/providers/ThemeProvider'
 import { AuthProvider } from '../components/providers/AuthProvider'
@@ -13,7 +13,12 @@ export const metadata: Metadata = {
   description: 'A modern, scalable Learning Management System with live classes and role-based permissions',
   keywords: 'LMS, learning, education, online courses, live classes, webrtc',
   authors: [{ name: 'LMS Team' }],
-  viewport: 'width=device-width, initial-scale=1',
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
 }
 
 export default function RootLayout({

@@ -447,15 +447,90 @@ const getInstructorClasses = asyncHandler(async (req, res) => {
  * Get instructor batches
  */
 const getInstructorCourses = asyncHandler(async (req, res) => {
-
-  const courses = await batchRepository.find(
+  const batches = await batchRepository.find(
     { instructorId: req.userId },
     {
       populate: [
-        { path: 'courseId', select: 'title' },
+        {
+          path: 'courseId',
+          select: 'title description shortDescription category level thumbnail'
+        },
       ]
     }
   );
+
+  if (!batches.length) {
+    return res.json({
+      success: true,
+      data: []
+    });
+  }
+
+  const batchStats = await Promise.all(
+    batches.map(async (batch) => {
+      const [totalClasses, completedClasses] = await Promise.all([
+        liveClassRepository.count({ batchId: batch.id }),
+        liveClassRepository.count({ batchId: batch.id, status: 'ENDED' })
+      ]);
+
+      return {
+        batch,
+        totalClasses,
+        completedClasses
+      };
+    })
+  );
+
+  const coursesById = new Map();
+
+  batchStats.forEach(({ batch, totalClasses, completedClasses }) => {
+    const course = batch.courseId;
+    const courseId = course?.id || course?._id?.toString?.();
+    if (!courseId) return;
+
+    if (!coursesById.has(courseId)) {
+      coursesById.set(courseId, {
+        id: courseId,
+        title: course.title || 'Course',
+        description: course.shortDescription || course.description || 'No description available',
+        thumbnail: course.thumbnail || null,
+        category: course.category || '',
+        level: course.level || '',
+        totalBatches: 0,
+        activeBatches: 0,
+        progress: {
+          completedClasses: 0,
+          totalClasses: 0,
+          completionPercentage: 0
+        }
+      });
+    }
+
+    const entry = coursesById.get(courseId);
+    entry.totalBatches += 1;
+    if (String(batch.status || '').toUpperCase() === 'ACTIVE') {
+      entry.activeBatches += 1;
+    }
+    entry.progress.completedClasses += completedClasses;
+    entry.progress.totalClasses += totalClasses;
+  });
+
+  const courses = Array.from(coursesById.values()).map((course) => {
+    const totalClasses = Number(course.progress.totalClasses || 0);
+    const completedClasses = Number(course.progress.completedClasses || 0);
+    const completionPercentage = totalClasses > 0
+      ? Math.round((completedClasses / totalClasses) * 100)
+      : 0;
+
+    return {
+      ...course,
+      progress: {
+        completedClasses,
+        totalClasses,
+        completionPercentage
+      }
+    };
+  });
 
   res.json({
     success: true,

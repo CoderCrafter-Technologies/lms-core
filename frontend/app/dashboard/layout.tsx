@@ -169,7 +169,7 @@ export default function DashboardLayout({
   ]
 
   return (
-    <div className="h-screen flex" style={{ backgroundColor: 'var(--color-background)', ...dashboardStyles }}>
+    <div className="h-[100dvh] flex" style={{ backgroundColor: 'var(--color-background)', ...dashboardStyles }}>
       {/* Mobile sidebar */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
@@ -179,7 +179,13 @@ export default function DashboardLayout({
           />
           <div 
             className="relative flex flex-col w-64 max-w-xs h-full shadow-xl"
-            style={{ backgroundColor: 'var(--color-sidebar)' }}
+            style={{
+              backgroundColor: 'var(--color-sidebar)',
+              paddingTop: 'var(--safe-area-inset-top)',
+              paddingRight: 'max(0.75rem, var(--safe-area-inset-right))',
+              paddingBottom: 'var(--safe-area-inset-bottom)',
+              paddingLeft: 'max(0.75rem, var(--safe-area-inset-left))',
+            }}
           >
             <div className="flex items-center justify-between h-16 px-4 border-b" style={{ borderColor: 'var(--color-sidebar-border)', color: 'var(--color-sidebar-text, var(--color-text))' }}>
               <Link href="/" prefetch={false} className="flex items-center gap-2 min-w-0 max-w-[11rem]">
@@ -369,13 +375,17 @@ export default function DashboardLayout({
       </div>
 
       {/* Main content area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Mobile header */}
         <div 
-          className="lg:hidden flex items-center justify-between h-16 px-4 border-b flex-shrink-0"
+          className="lg:hidden flex items-center justify-between px-4 border-b flex-shrink-0"
           style={{ 
             backgroundColor: 'var(--color-sidebar)',
-            borderColor: 'var(--color-sidebar-border)'
+            borderColor: 'var(--color-sidebar-border)',
+            minHeight: 'calc(4rem + var(--safe-area-inset-top))',
+            paddingTop: 'var(--safe-area-inset-top)',
+            paddingRight: 'max(1rem, var(--safe-area-inset-right))',
+            paddingLeft: 'max(1rem, var(--safe-area-inset-left))',
           }}
         >
           <button
@@ -395,7 +405,13 @@ export default function DashboardLayout({
         </div>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto scrollbar-hidden" style={{ backgroundColor: 'var(--color-background)' }}>
+        <main
+          className="flex-1 overflow-y-auto scrollbar-hidden"
+          style={{
+            backgroundColor: 'var(--color-background)',
+            paddingBottom: 'var(--safe-area-inset-bottom)',
+          }}
+        >
           {children}
         </main>
       </div>

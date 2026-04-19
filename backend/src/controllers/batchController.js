@@ -240,10 +240,16 @@ const updateBatch = asyncHandler(async (req, res) => {
     effectiveSchedule.timezone !== previousSchedule.timezone
   );
 
+  const previousInstructorId = existingBatch.instructorId?.toString?.() || '';
+  const nextInstructorId = updates.instructorId?.toString?.() || '';
+  const instructorFieldProvided = Object.prototype.hasOwnProperty.call(updates, 'instructorId');
+  const instructorChanged = instructorFieldProvided && nextInstructorId !== previousInstructorId;
+
   const batch = await batchRepository.updateById(id, updates);
   
   let rescheduledClasses = 0;
-  if (batch && scheduleFieldsChanged) {
+  let reassignedInstructorClasses = 0;
+  if (batch && (scheduleFieldsChanged || instructorChanged)) {
     const now = new Date();
     const upcomingClasses = await liveClassRepository.find({
       batchId: id,
@@ -259,50 +265,72 @@ const updateBatch = asyncHandler(async (req, res) => {
     const [newEndHour, newEndMinute] = String(effectiveSchedule.endTime || '00:00').split(':').map(Number);
 
     for (const liveClass of upcomingClasses) {
-      const dateParts = getDatePartsInTimezone(liveClass.scheduledStartTime, sourceTimezone);
-      if (!dateParts) continue;
+      const liveClassUpdates = {};
 
-      const nextStart = zonedDateTimeToUtc(
-        {
-          year: dateParts.year,
-          month: dateParts.month,
-          day: dateParts.day,
-          hour: newStartHour,
-          minute: newStartMinute
-        },
-        targetTimezone
-      );
+      if (scheduleFieldsChanged) {
+        const dateParts = getDatePartsInTimezone(liveClass.scheduledStartTime, sourceTimezone);
+        if (dateParts) {
+          const nextStart = zonedDateTimeToUtc(
+            {
+              year: dateParts.year,
+              month: dateParts.month,
+              day: dateParts.day,
+              hour: newStartHour,
+              minute: newStartMinute
+            },
+            targetTimezone
+          );
 
-      let nextEnd = zonedDateTimeToUtc(
-        {
-          year: dateParts.year,
-          month: dateParts.month,
-          day: dateParts.day,
-          hour: newEndHour,
-          minute: newEndMinute
-        },
-        targetTimezone
-      );
+          let nextEnd = zonedDateTimeToUtc(
+            {
+              year: dateParts.year,
+              month: dateParts.month,
+              day: dateParts.day,
+              hour: newEndHour,
+              minute: newEndMinute
+            },
+            targetTimezone
+          );
 
-      if (nextEnd <= nextStart) {
-        nextEnd = new Date(nextEnd.getTime() + 24 * 60 * 60 * 1000);
+          if (nextEnd <= nextStart) {
+            nextEnd = new Date(nextEnd.getTime() + 24 * 60 * 60 * 1000);
+          }
+
+          liveClassUpdates.scheduledStartTime = nextStart;
+          liveClassUpdates.scheduledEndTime = nextEnd;
+          rescheduledClasses += 1;
+        }
       }
 
-      await liveClassRepository.updateById(liveClass.id || liveClass._id, {
-        scheduledStartTime: nextStart,
-        scheduledEndTime: nextEnd
-      });
-      rescheduledClasses += 1;
+      if (instructorChanged && nextInstructorId) {
+        liveClassUpdates.instructorId = nextInstructorId;
+        reassignedInstructorClasses += 1;
+      }
+
+      if (Object.keys(liveClassUpdates).length > 0) {
+        await liveClassRepository.updateById(liveClass.id || liveClass._id, liveClassUpdates);
+      }
     }
+  }
+
+  const updateNotes = [];
+  if (scheduleFieldsChanged) {
+    updateNotes.push(`Rescheduled ${rescheduledClasses} upcoming classes.`);
+  }
+  if (instructorChanged && nextInstructorId) {
+    updateNotes.push(`Updated instructor for ${reassignedInstructorClasses} upcoming classes.`);
   }
 
   res.json({
     success: true,
-    message: scheduleFieldsChanged
-      ? `Batch updated successfully. Rescheduled ${rescheduledClasses} upcoming classes.`
+    message: updateNotes.length > 0
+      ? `Batch updated successfully. ${updateNotes.join(' ')}`
       : 'Batch updated successfully',
-    meta: scheduleFieldsChanged
-      ? { rescheduledUpcomingClasses: rescheduledClasses }
+    meta: updateNotes.length > 0
+      ? {
+          rescheduledUpcomingClasses: rescheduledClasses,
+          reassignedInstructorUpcomingClasses: reassignedInstructorClasses
+        }
       : undefined,
     data: batch
   });

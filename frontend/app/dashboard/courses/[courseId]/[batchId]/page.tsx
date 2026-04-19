@@ -218,6 +218,33 @@ export default function ScheduledClassesPage() {
     return 'Scheduled'
   }
 
+  const getInstructorDisplayName = (scheduledClass: any) => {
+    const classInstructor = scheduledClass?.instructorId
+    if (classInstructor && typeof classInstructor === 'object') {
+      const fullName = [classInstructor.firstName, classInstructor.lastName].filter(Boolean).join(' ').trim()
+      if (fullName) return fullName
+      if (classInstructor.name) return classInstructor.name
+      if (classInstructor.email) return classInstructor.email
+    }
+
+    const alternateInstructor = scheduledClass?.instructor
+    if (alternateInstructor && typeof alternateInstructor === 'object') {
+      const fullName = [alternateInstructor.firstName, alternateInstructor.lastName].filter(Boolean).join(' ').trim()
+      if (fullName) return fullName
+      if (alternateInstructor.name) return alternateInstructor.name
+      if (alternateInstructor.email) return alternateInstructor.email
+    }
+
+    const batchInstructor = batch?.instructorId
+    if (batchInstructor && typeof batchInstructor === 'object') {
+      const fullName = [batchInstructor.firstName, batchInstructor.lastName].filter(Boolean).join(' ').trim()
+      if (fullName) return fullName
+      if (batchInstructor.email) return batchInstructor.email
+    }
+
+    return 'Not assigned'
+  }
+
   return (
     <div className="flex-1 p-6 max-w-full" style={{ backgroundColor: 'var(--color-background)' }}>
       <div className="mb-8">
@@ -469,7 +496,7 @@ export default function ScheduledClassesPage() {
                                 )}
                               </TableCell>
                               <TableCell style={{ color: 'var(--color-text-secondary)' }}>
-                                {scheduledClass.instructorId?.firstName || scheduledClass.instructor?.name || 'Not assigned'}
+                                {getInstructorDisplayName(scheduledClass)}
                               </TableCell>
                             </TableRow>
                             
@@ -505,7 +532,7 @@ export default function ScheduledClassesPage() {
                                             </div>
                                             <div className="flex items-center gap-2" style={{ color: 'var(--color-text-secondary)' }}>
                                               <User className="h-4 w-4" />
-                                              <span>{scheduledClass.instructorId?.firstName || scheduledClass.instructor?.name || 'Not assigned'}</span>
+                                              <span>{getInstructorDisplayName(scheduledClass)}</span>
                                             </div>
                                           </div>
 

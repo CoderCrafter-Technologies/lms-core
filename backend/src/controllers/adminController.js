@@ -241,10 +241,9 @@ const getBatchDetails = asyncHandler(async (req, res) => {
     });
   }
 
-  // Get scheduled classes
-  const classes = await liveClassRepository.find({ batchId: id }, {
-    sort: { scheduledStartTime: 1 }
-  });
+  // Get scheduled classes with populated instructor details for the dashboard view.
+  let classes = await liveClassRepository.findByBatch(id);
+  classes = await liveClassRepository.ensureRoomIds(classes);
 
   // Get enrolled students
   const enrollments = await enrollmentRepository.find({ batchId: id }, {

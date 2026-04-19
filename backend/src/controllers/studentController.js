@@ -573,6 +573,31 @@ function generateRandomPassword() {
   return password;
 }
 
+const studentCourseBatchPopulate = {
+  path: 'batchId',
+  select: 'name startDate endDate schedule status currentEnrollment maxStudents instructorId',
+  populate: {
+    path: 'instructorId',
+    select: 'firstName lastName email avatar bio phone specialization expertise'
+  }
+};
+
+const attachInstructorFromBatchToCourse = (coursePayload, batchPayload) => {
+  if (!coursePayload || !batchPayload?.instructorId) {
+    return coursePayload;
+  }
+
+  const instructor = batchPayload.instructorId;
+  const courseObject = typeof coursePayload.toObject === 'function'
+    ? coursePayload.toObject()
+    : { ...coursePayload };
+
+  courseObject.instructor = instructor;
+  courseObject.instructorId = instructor;
+
+  return courseObject;
+};
+
 /**
  * Get current student's enrollments (for logged-in student)
  */
@@ -872,13 +897,9 @@ const getMyEnrolledCourses = asyncHandler(async (req, res) => {
       populate: [
         { 
           path: 'courseId', 
-          select: 'title description category level duration thumbnail instructor tags price',
-          populate: { path: 'instructor', select: 'firstName lastName email' }
+          select: 'title description category level duration thumbnail tags price createdBy'
         },
-        { 
-          path: 'batchId', 
-          select: 'name startDate endDate schedule status currentEnrollment maxStudents'
-        }
+        studentCourseBatchPopulate
       ],
       sort: { enrollmentDate: -1 }
     }
@@ -899,7 +920,9 @@ const getMyEnrolledCourses = asyncHandler(async (req, res) => {
     totalClasses: enrollment.progress?.totalClasses || 0,
     attendedClasses: enrollment.attendance?.attendedClasses || 0,
     batch: enrollment.batchId,
-    ...enrollment.courseId.toObject()
+    instructor: enrollment.batchId?.instructorId || null,
+    instructorId: enrollment.batchId?.instructorId || null,
+    ...attachInstructorFromBatchToCourse(enrollment.courseId, enrollment.batchId)
   }));
 
   // Apply search filter if provided
@@ -976,13 +999,9 @@ const searchEnrolledCourses = asyncHandler(async (req, res) => {
       populate: [
         { 
           path: 'courseId', 
-          select: 'title description category level duration thumbnail instructor tags price objectives prerequisites',
-          populate: { path: 'instructor', select: 'firstName lastName email avatar' }
+          select: 'title description category level duration thumbnail tags price objectives prerequisites createdBy'
         },
-        { 
-          path: 'batchId', 
-          select: 'name startDate endDate schedule status currentEnrollment maxStudents'
-        }
+        studentCourseBatchPopulate
       ]
     }
   );
@@ -1003,7 +1022,9 @@ const searchEnrolledCourses = asyncHandler(async (req, res) => {
     attendedClasses: enrollment.attendance?.attendedClasses || 0,
     attendanceRate: enrollment.attendance?.attendancePercentage || 0,
     batch: enrollment.batchId,
-    course: enrollment.courseId
+    instructor: enrollment.batchId?.instructorId || null,
+    instructorId: enrollment.batchId?.instructorId || null,
+    course: attachInstructorFromBatchToCourse(enrollment.courseId, enrollment.batchId)
   }));
 
   if (progress) {
@@ -1177,13 +1198,9 @@ const getEnrolledCourse = asyncHandler(async (req, res) => {
       populate: [
         { 
           path: 'courseId', 
-          select: 'title description category level duration thumbnail instructor tags price objectives syllabus resources materials',
-          populate: { path: 'instructor', select: 'firstName lastName email avatar bio' }
+          select: 'title description category level duration thumbnail tags price objectives syllabus resources materials createdBy'
         },
-        { 
-          path: 'batchId', 
-          select: 'name startDate endDate schedule status currentEnrollment maxStudents'
-        }
+        studentCourseBatchPopulate
       ]
     }
   );
@@ -1235,7 +1252,9 @@ const getEnrolledCourse = asyncHandler(async (req, res) => {
         attendedClasses: enrollment.attendance?.attendedClasses || 0,
         attendanceRate: enrollment.attendance?.attendancePercentage || 0
       },
-      course: enrollment.courseId,
+      instructor: enrollment.batchId?.instructorId || null,
+      instructorId: enrollment.batchId?.instructorId || null,
+      course: attachInstructorFromBatchToCourse(enrollment.courseId, enrollment.batchId),
       batch: enrollment.batchId,
       upcomingClasses,
       resources: {

@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../../../components/providers/AuthProvider'
 import { api } from '../../../lib/api'
-import { Shield, Smartphone, LogOut, Lock, Bell, CheckCircle2 } from 'lucide-react'
+import { Shield, Smartphone, LogOut, Lock, Bell, CheckCircle2, ImagePlus } from 'lucide-react'
 
 type SecuritySettings = {
   allowConcurrentSessions: boolean
@@ -171,7 +171,8 @@ type DnsRecord = {
 }
 
 export default function SettingsPage() {
-  const { user, logout } = useAuth()
+  const { user, logout, refreshProfile } = useAuth()
+  const avatarInputRef = useRef<HTMLInputElement | null>(null)
   const [activeTab, setActiveTab] = useState<'security' | 'signin' | 'notifications' | 'database' | 'smtp' | 'domain'>('security')
   const [settings, setSettings] = useState<SecuritySettings>(defaultSecuritySettings)
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(defaultNotificationSettings)
@@ -187,6 +188,7 @@ export default function SettingsPage() {
   const [sessions, setSessions] = useState<SignInSession[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [avatarUploading, setAvatarUploading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
   const [resetMode, setResetMode] = useState<'wipe' | 'full'>('wipe')
@@ -208,6 +210,17 @@ export default function SettingsPage() {
 
   const displayRole = useMemo(() => user?.role?.displayName || user?.role?.name || 'User', [user])
   const isAdmin = useMemo(() => String(user?.role?.name || '').toUpperCase() === 'ADMIN', [user])
+  const initials = useMemo(() => {
+    const first = String(user?.firstName || '').trim().charAt(0)
+    const last = String(user?.lastName || '').trim().charAt(0)
+    return `${first}${last}`.trim().toUpperCase() || 'U'
+  }, [user?.firstName, user?.lastName])
+  const avatarUrl = useMemo(() => {
+    const raw = String(user?.avatar?.url || '').trim()
+    if (!raw) return ''
+    if (/^https?:\/\//i.test(raw)) return raw
+    return raw.startsWith('/') ? raw : `/${raw}`
+  }, [user?.avatar?.url])
   const postgresRuntimeEnabled = useMemo(
     () => String(process.env.NEXT_PUBLIC_ENABLE_POSTGRES_RUNTIME || 'false').toLowerCase() === 'true',
     []
@@ -316,6 +329,28 @@ export default function SettingsPage() {
       setMessage(error?.message || 'Failed to generate DNS records')
     } finally {
       setDomainBusy(false)
+    }
+  }
+
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    try {
+      setAvatarUploading(true)
+      setMessage(null)
+      const form = new FormData()
+      form.append('avatar', file)
+      const response = await api.uploadProfileAvatar(form)
+      await refreshProfile()
+      setMessage(response?.message || 'Profile picture updated successfully.')
+    } catch (error: any) {
+      setMessage(error?.message || 'Failed to upload profile picture.')
+    } finally {
+      setAvatarUploading(false)
+      if (avatarInputRef.current) {
+        avatarInputRef.current.value = ''
+      }
     }
   }
 
@@ -646,6 +681,56 @@ export default function SettingsPage() {
         <p className="text-sm mt-1" style={{ color: 'var(--color-text-secondary)' }}>
           {displayRole} account security and sign-in management
         </p>
+      </div>
+
+      <div className="mb-6 rounded-2xl border p-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+        <div className="flex items-center gap-4 min-w-0">
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt={`${user?.firstName || 'User'} ${user?.lastName || ''}`.trim()}
+              className="h-20 w-20 rounded-full object-cover border"
+              style={{ borderColor: 'var(--color-border)' }}
+            />
+          ) : (
+            <div
+              className="h-20 w-20 rounded-full flex items-center justify-center text-2xl font-bold"
+              style={{ backgroundColor: 'var(--color-primary-light)', color: 'var(--color-primary)' }}
+            >
+              {initials}
+            </div>
+          )}
+
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold truncate" style={{ color: 'var(--color-text)' }}>
+              {user?.firstName} {user?.lastName}
+            </h2>
+            <p className="text-sm truncate" style={{ color: 'var(--color-text-secondary)' }}>{user?.email}</p>
+            <p className="text-sm mt-1" style={{ color: 'var(--color-text-secondary)' }}>
+              Upload a profile picture once and it will appear across the dashboard, mobile app, and class views.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <input
+            ref={avatarInputRef}
+            accept="image/png,image/jpeg,image/webp"
+            className="hidden"
+            onChange={handleAvatarUpload}
+            type="file"
+          />
+          <button
+            type="button"
+            onClick={() => avatarInputRef.current?.click()}
+            disabled={avatarUploading}
+            className="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white"
+            style={{ backgroundColor: 'var(--color-primary)', opacity: avatarUploading ? 0.7 : 1 }}
+          >
+            <ImagePlus className="w-4 h-4" />
+            {avatarUploading ? 'Uploading...' : avatarUrl ? 'Change Picture' : 'Upload Picture'}
+          </button>
+        </div>
       </div>
 
       <div className="mb-4 flex gap-2">

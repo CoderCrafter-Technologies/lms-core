@@ -348,6 +348,13 @@ class ApiService {
     return this.request('/auth/me');
   }
 
+  async uploadProfileAvatar(payload: FormData) {
+    return this.request('/auth/me/avatar', {
+      method: 'POST',
+      body: payload,
+    });
+  }
+
   async getSetupStatus() {
     return this.request('/setup/status');
   }

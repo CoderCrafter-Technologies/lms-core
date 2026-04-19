@@ -2,6 +2,9 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { randomUUID, randomInt, createHash } = require('crypto');
+const fs = require('fs/promises');
+const path = require('path');
+const multer = require('multer');
 const { body, validationResult } = require('express-validator');
 
 const config = require('../config');
@@ -11,12 +14,56 @@ const { asyncHandler } = require('../middleware/errorHandler');
 const { authenticateToken } = require('../middleware/auth');
 const emailService = require('../services/emailService');
 const { resolveIpLocation } = require('../services/sessionLocationService');
+const { AVATAR_UPLOAD_DIR, ensureAvatarUploadDir, saveCompressedAvatar, removeLocalAvatar } = require('../utils/avatarStorage');
 
 const router = express.Router();
 const REFRESH_COOKIE_NAME = 'refreshToken';
 const REGISTRATION_OTP_EXP_MINUTES = Math.max(3, Number(process.env.REGISTRATION_OTP_EXP_MINUTES || 10));
 const PASSWORD_SETUP_OTP_EXP_MINUTES = Math.max(3, Number(process.env.PASSWORD_SETUP_OTP_EXP_MINUTES || 10));
 const FORGOT_PASSWORD_OTP_EXP_MINUTES = Math.max(3, Number(process.env.FORGOT_PASSWORD_OTP_EXP_MINUTES || 10));
+
+const avatarUpload = multer({
+  storage: multer.diskStorage({
+    destination: async (req, file, cb) => {
+      try {
+        await ensureAvatarUploadDir();
+        cb(null, AVATAR_UPLOAD_DIR);
+      } catch (error) {
+        cb(error);
+      }
+    },
+    filename: (req, file, cb) => {
+      const extension = path.extname(file.originalname || '').toLowerCase() || '.tmp';
+      cb(null, `raw-${Date.now()}-${Math.round(Math.random() * 1e9)}${extension}`);
+    },
+  }),
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+    files: 1,
+  },
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+    if (!allowed.includes(String(file.mimetype || '').toLowerCase())) {
+      return cb(new Error('Only JPG, PNG, or WEBP images are allowed for profile pictures.'));
+    }
+    cb(null, true);
+  },
+});
+
+const serializeProfileUser = (user, req) => ({
+  id: user.id,
+  email: user.email,
+  firstName: user.firstName,
+  lastName: user.lastName,
+  avatar: user.avatar,
+  phone: user.phone,
+  role: req.userRole,
+  managerPermissions: Array.isArray(user.managerPermissions) ? user.managerPermissions : [],
+  notificationSettings: user.notificationSettings || null,
+  isEmailVerified: user.isEmailVerified,
+  lastLogin: user.lastLogin,
+  createdAt: user.createdAt
+});
 
 const createAccessToken = (user) => jwt.sign(
   { userId: user.id, email: user.email, type: 'access' },
@@ -667,21 +714,58 @@ router.post('/refresh', asyncHandler(async (req, res) => {
  */
 router.get('/me', authenticateToken, asyncHandler(async (req, res) => {
   res.json({
-    user: {
-      id: req.user.id,
-      email: req.user.email,
-      firstName: req.user.firstName,
-      lastName: req.user.lastName,
-      avatar: req.user.avatar,
-      phone: req.user.phone,
-      role: req.userRole,
-      managerPermissions: Array.isArray(req.user.managerPermissions) ? req.user.managerPermissions : [],
-      notificationSettings: req.user.notificationSettings || null,
-      isEmailVerified: req.user.isEmailVerified,
-      lastLogin: req.user.lastLogin,
-      createdAt: req.user.createdAt
-    }
+    user: serializeProfileUser(req.user, req)
   });
+}));
+
+/**
+ * @route   POST /api/auth/me/avatar
+ * @desc    Upload or replace current user profile picture
+ * @access  Private
+ */
+router.post('/me/avatar', authenticateToken, avatarUpload.single('avatar'), asyncHandler(async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({
+      error: 'Validation failed',
+      message: 'Profile picture file is required'
+    });
+  }
+
+  const sourcePath = req.file.path;
+  let savedAvatar = null;
+
+  try {
+    savedAvatar = await saveCompressedAvatar({ inputPath: sourcePath, user: req.user });
+    const previousAvatarUrl = req.user?.avatar?.url || null;
+
+    const updatedUser = await userRepository.updateProfile(req.user.id, {
+      avatar: {
+        url: savedAvatar.url,
+        publicId: savedAvatar.publicId,
+      },
+    });
+
+    if (!updatedUser) {
+      await removeLocalAvatar(savedAvatar.url);
+      return res.status(404).json({
+        error: 'User not found',
+        message: 'User account could not be updated'
+      });
+    }
+
+    if (previousAvatarUrl && previousAvatarUrl !== savedAvatar.url) {
+      await removeLocalAvatar(previousAvatarUrl);
+    }
+
+    req.user = updatedUser;
+
+    return res.json({
+      message: 'Profile picture updated successfully',
+      user: serializeProfileUser(updatedUser, req),
+    });
+  } finally {
+    await fs.unlink(sourcePath).catch(() => {});
+  }
 }));
 
 /**

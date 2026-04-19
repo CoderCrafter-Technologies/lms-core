@@ -13,6 +13,7 @@ interface AuthContextType {
   register: (userData: RegisterData) => Promise<void>
   logout: () => void
   refreshToken: () => Promise<void>
+  refreshProfile: () => Promise<User | null>
 }
 
 interface RegisterData {
@@ -125,6 +126,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  const refreshProfile = async () => {
+    initializedRef.current = false
+    setLoading(true)
+    return initializeAuth()
+  }
+
   const logout = () => {
     try {
       api.logout().catch(() => {
@@ -145,6 +152,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     register,
     logout,
     refreshToken,
+    refreshProfile,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

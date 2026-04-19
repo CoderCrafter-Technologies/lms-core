@@ -18,7 +18,16 @@ class LiveClassCronService {
   async updateLiveClassStatuses() {
     if (this.isRunning) {
       logger.info('LiveClass status update already in progress, skipping...');
-      return;
+      return {
+        processed: 0,
+        updated: 0,
+        transitions: {
+          scheduledToLive: { processed: 0, updated: 0 },
+          scheduledToEnded: { processed: 0, updated: 0 },
+          liveToEnded: { processed: 0, updated: 0 }
+        },
+        skipped: true
+      };
     }
 
     this.isRunning = true;
@@ -45,9 +54,31 @@ class LiveClassCronService {
 
       await this.processMissedClassNotifications(now);
 
+      logger.info(
+        'LiveClass status transitions summary',
+        {
+          now: now.toISOString(),
+          scheduledToLive: scheduledToLiveResult,
+          scheduledToEnded: scheduledToEndedResult,
+          liveToEnded: liveToEndedResult,
+          totalProcessed: processedCount,
+          totalUpdated: updatedCount
+        }
+      );
       logger.info(`LiveClass status update completed. Processed: ${processedCount}, Updated: ${updatedCount}`);
+      return {
+        processed: processedCount,
+        updated: updatedCount,
+        transitions: {
+          scheduledToLive: scheduledToLiveResult,
+          scheduledToEnded: scheduledToEndedResult,
+          liveToEnded: liveToEndedResult
+        },
+        skipped: false
+      };
     } catch (error) {
       logger.error('Error in LiveClass status update cron job:', error);
+      throw error;
     } finally {
       this.isRunning = false;
     }

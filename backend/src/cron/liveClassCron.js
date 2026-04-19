@@ -1,14 +1,33 @@
 const cron = require('node-cron');
 const liveClassCronService = require('../services/liveClassCronService');
+const systemSettingsStore = require('../services/systemSettingsStore');
 
 // Configuration
 const CRON_SCHEDULE = process.env.LIVE_CLASS_CRON_SCHEDULE || '* * * * *'; // Every 5 minutes
 const ENABLE_CRON = process.env.ENABLE_LIVE_CLASS_CRON !== 'false'; // Enabled by default
+const getRuntimeTimezone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 
 class LiveClassCron {
   constructor() {
     this.job = null;
     this.isRunning = false;
+  }
+
+  async logTimezoneSelection() {
+    try {
+      const setupSettings = await systemSettingsStore.getSetupSettings();
+      const appSelectedTimezone = setupSettings?.defaults?.timezone || 'UTC';
+      const cronTimezone = process.env.TZ || 'UTC';
+      const runtimeTimezone = getRuntimeTimezone();
+
+      console.log(
+        `[CRON] LiveClass timezone selection -> app selected: ${appSelectedTimezone}, cron scheduler: ${cronTimezone}, runtime: ${runtimeTimezone}`
+      );
+    } catch (error) {
+      console.warn(
+        `[CRON] LiveClass timezone selection unavailable. cron scheduler: ${process.env.TZ || 'UTC'}, runtime: ${getRuntimeTimezone()}, error: ${error.message || error}`
+      );
+    }
   }
 
   /**
@@ -26,6 +45,7 @@ class LiveClassCron {
     }
 
     console.log(`Starting LiveClass cron job with schedule: ${CRON_SCHEDULE}`);
+    this.logTimezoneSelection().catch(() => undefined);
 
     this.job = cron.schedule(CRON_SCHEDULE, async () => {
       if (this.isRunning) {
@@ -37,9 +57,16 @@ class LiveClassCron {
       const startTime = Date.now();
 
       try {
-        await liveClassCronService.updateLiveClassStatuses();
+        const result = await liveClassCronService.updateLiveClassStatuses();
         const duration = Date.now() - startTime;
-        console.log(`LiveClass cron job completed in ${duration}ms`);
+        console.log(
+          `LiveClass cron job completed in ${duration}ms` +
+          ` | scheduled->live: ${result?.transitions?.scheduledToLive?.updated || 0}` +
+          ` | scheduled->ended: ${result?.transitions?.scheduledToEnded?.updated || 0}` +
+          ` | live->ended: ${result?.transitions?.liveToEnded?.updated || 0}` +
+          ` | processed: ${result?.processed || 0}` +
+          ` | updated: ${result?.updated || 0}`
+        );
       } catch (error) {
         console.error('LiveClass cron job failed:', error);
       } finally {
@@ -52,7 +79,19 @@ class LiveClassCron {
 
     // Run immediately on startup
     setTimeout(() => {
-      liveClassCronService.updateLiveClassStatuses().catch(console.error);
+      liveClassCronService
+        .updateLiveClassStatuses()
+        .then((result) => {
+          console.log(
+            `[CRON] LiveClass startup run completed` +
+            ` | scheduled->live: ${result?.transitions?.scheduledToLive?.updated || 0}` +
+            ` | scheduled->ended: ${result?.transitions?.scheduledToEnded?.updated || 0}` +
+            ` | live->ended: ${result?.transitions?.liveToEnded?.updated || 0}` +
+            ` | processed: ${result?.processed || 0}` +
+            ` | updated: ${result?.updated || 0}`
+          );
+        })
+        .catch(console.error);
     }, 5000); // Wait 5 seconds after server start
   }
 

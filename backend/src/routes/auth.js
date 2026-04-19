@@ -38,13 +38,13 @@ const avatarUpload = multer({
     },
   }),
   limits: {
-    fileSize: 5 * 1024 * 1024,
+    fileSize: 12 * 1024 * 1024,
     files: 1,
   },
   fileFilter: (req, file, cb) => {
-    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg', 'image/heic', 'image/heif'];
     if (!allowed.includes(String(file.mimetype || '').toLowerCase())) {
-      return cb(new Error('Only JPG, PNG, or WEBP images are allowed for profile pictures.'));
+      return cb(new Error('Only JPG, PNG, WEBP, or HEIC images are allowed for profile pictures.'));
     }
     cb(null, true);
   },

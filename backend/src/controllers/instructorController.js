@@ -2,7 +2,9 @@ const { userRepository, liveClassRepository, batchRepository, roleRepository } =
 const { asyncHandler } = require('../middleware/errorHandler');
 const { validationResult } = require('express-validator');
 const emailService = require('../services/emailService');
-const bcrypt = require('bcryptjs');
+const { preparePasswordSetup } = require('../services/passwordSetupService');
+const jwt = require('jsonwebtoken');
+const config = require('../config');
 const { Enrollment } = require('../models');
 
 /**
@@ -164,7 +166,15 @@ const createInstructor = asyncHandler(async (req, res) => {
   // Send welcome email with credentials
   let welcomeEmailResult = { success: false, skipped: false, message: '' };
   try {
-    const result = await emailService.sendInstructorWelcomeEmail(instructor, instructorPassword);
+    const passwordSetup = await preparePasswordSetup(instructor, {
+      purpose: 'password_setup_by_admin'
+    });
+    const result = await emailService.sendInstructorWelcomeEmail(instructor, instructorPassword, {
+      setupToken: passwordSetup.token,
+      setupOtp: passwordSetup.otp,
+      setupLinkExpiresInMinutes: passwordSetup.tokenExpiresMinutes,
+      setupOtpExpiresInMinutes: passwordSetup.otpExpiresMinutes
+    });
     welcomeEmailResult = result || welcomeEmailResult;
   } catch (error) {
     console.error('Failed to send welcome email:', error);
@@ -538,22 +548,43 @@ const resetInstructorPassword = asyncHandler(async (req, res) => {
     });
   }
 
-  // Generate new password
-  const newPassword = generateRandomPassword();
-  
-  // Update password
-  await userRepository.updateById(id, { password: newPassword });
+  const resetToken = jwt.sign(
+    { userId: instructor.id || instructor._id, purpose: 'password-reset' },
+    config.jwt.secret,
+    { expiresIn: '1h' }
+  );
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
 
-  // Send email with new password
+  await userRepository.updateById(id, {
+    passwordResetToken: resetToken,
+    passwordResetExpires: expiresAt,
+    mustSetPassword: true
+  });
+
+  let emailSent = false;
   try {
-    await emailService.sendPasswordResetEmail(instructor, newPassword);
+    const emailResult = await emailService.sendPasswordResetEmail(instructor, {
+      token: resetToken,
+      expiresInMinutes: 60,
+      subject: 'Reset your LMS password'
+    });
+    emailSent = Boolean(emailResult?.success && !emailResult?.skipped);
   } catch (error) {
     console.error('Failed to send password reset email:', error);
   }
 
+  await emailService.sendAdminEventEmail(
+    'Instructor password reset requested',
+    `<p>An instructor password reset was initiated by admin.</p>
+     <p><strong>Instructor:</strong> ${instructor.firstName || ''} ${instructor.lastName || ''}<br/>
+     <strong>Email:</strong> ${instructor.email || '-'}</p>`
+  );
+
   res.json({
     success: true,
-    message: 'Password reset successfully. New password sent to instructor\'s email.'
+    message: emailSent
+      ? 'Password reset email sent to instructor successfully.'
+      : 'Password reset initiated successfully.'
   });
 });
 

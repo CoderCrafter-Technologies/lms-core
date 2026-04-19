@@ -136,8 +136,50 @@ class EmailService {
     });
   }
 
-  async sendInstructorWelcomeEmail(instructor, password) {
-    return this.sendWelcomeEmail(instructor, password);
+  async sendInstructorWelcomeEmail(instructor, password, options = {}) {
+    if (!instructor?.email) return { success: false, skipped: true };
+    const frontendUrl = await resolveAppUrl();
+    const setupToken = String(options.setupToken || '').trim();
+    const setupOtp = String(options.setupOtp || '').trim();
+    const setupUrl = setupToken
+      ? `${frontendUrl}/auth/reset-password?token=${encodeURIComponent(setupToken)}`
+      : '';
+    const linkExpiryText = options.setupLinkExpiresInMinutes
+      ? `<p><strong>Setup link validity:</strong> ${escapeHtml(String(options.setupLinkExpiresInMinutes))} minutes</p>`
+      : '';
+    const otpExpiryText = options.setupOtpExpiresInMinutes
+      ? `<p><strong>Setup OTP validity:</strong> ${escapeHtml(String(options.setupOtpExpiresInMinutes))} minutes</p>`
+      : '';
+    const credentialsBlock = password
+      ? `<p><strong>Email:</strong> ${escapeHtml(instructor.email)}<br/>
+         <strong>Temporary password:</strong> ${escapeHtml(password)}</p>`
+      : `<p><strong>Email:</strong> ${escapeHtml(instructor.email)}</p>`;
+    const setupBlock = setupUrl || setupOtp
+      ? `<p>Your account must be activated by setting a new password before first login.</p>
+         <p>You can use any of the options below:</p>
+         <ol>
+           ${setupUrl ? `<li>Open this secure setup link: <a href="${setupUrl}">Set up your password</a></li>` : ''}
+           ${setupOtp ? `<li>Enter this OTP on the password setup screen: <strong style="font-size:20px;letter-spacing:2px;">${escapeHtml(setupOtp)}</strong></li>` : ''}
+         </ol>
+         ${linkExpiryText}
+         ${otpExpiryText}
+         <p>If the setup link is unavailable, you can still sign in with the temporary password and continue the OTP-based password setup flow.</p>`
+      : `<p>Please change your password after first login.</p>
+         <p><a href="${frontendUrl}/auth/login">Go to login</a></p>`;
+
+    return this.sendRaw({
+      to: instructor.email,
+      subject: setupUrl || setupOtp
+        ? 'Welcome to LMS - Set up your instructor account'
+        : 'Welcome to LMS - Your account is ready',
+      html: wrapEmail(
+        'Welcome to LMS',
+        `<p>Hello ${escapeHtml(instructor.firstName || '')},</p>
+         <p>Your instructor account has been created successfully.</p>
+         ${credentialsBlock}
+         ${setupBlock}`
+      )
+    });
   }
 
   async sendBatchEnrollmentEmail(user, batch, course) {
@@ -178,7 +220,7 @@ class EmailService {
     }
 
     const payload = tokenOrPayload || {};
-    if (payload.token && payload.otp) {
+    if (payload.token) {
       const resetUrl = `${frontendUrl}/auth/reset-password?token=${encodeURIComponent(String(payload.token))}`;
       return this.sendRaw({
         to: email,
@@ -186,12 +228,10 @@ class EmailService {
         html: wrapEmail(
           'Password Reset',
           `<p>Hello ${escapeHtml(payload.name || firstName)},</p>
-           <p>You can reset your password using either method below:</p>
-           <ol>
-             <li>Open reset link: <a href="${resetUrl}">Reset password</a></li>
-             <li>Use OTP: <strong style="font-size:20px;letter-spacing:2px;">${escapeHtml(payload.otp)}</strong></li>
-           </ol>
-           <p>OTP expires in ${escapeHtml(String(payload.expiresInMinutes || 10))} minutes.</p>
+           <p>Use the secure link below to reset your password.</p>
+           <p><a href="${resetUrl}">Reset password</a></p>
+           ${payload.otp ? `<p>Or use OTP: <strong style="font-size:20px;letter-spacing:2px;">${escapeHtml(payload.otp)}</strong></p>` : ''}
+           ${payload.expiresInMinutes ? `<p>${payload.otp ? 'OTP' : 'Reset link'} expires in ${escapeHtml(String(payload.expiresInMinutes))} minutes.</p>` : ''}
            <p>If you did not request this, ignore this email.</p>`
         )
       });

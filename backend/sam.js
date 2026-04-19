@@ -19,6 +19,42 @@ const ROLE_PASSWORDS = {
   student: process.env.SEED_STUDENT_PASSWORD || 'Student@123',
 };
 
+const FIXED_INSTRUCTOR_EMAILS = [
+  'bavekepauffoi-9053@yopmail.com',
+  'triloikesuci-4010@yopmail.com',
+  'groitannaunuge-4709@yopmail.com',
+  'raumjmjgrugoudo-8905@yopmail.com',
+  'frellaumeixougre-9793@yopmail.com',
+  'konnufreuhowa-5695@yopmail.com',
+  'citugreppoira-5999@yopmail.com',
+  'quosaufruppazi-6641@yopmail.com',
+  'bequossubregau-2465@yopmail.com',
+];
+
+const FIXED_STUDENT_EMAILS = [
+  'webrunnouveippe-8312@yopmail.com',
+  'rappopribrixe-6604@yopmail.com',
+  'vahocayemu-2711@yopmail.com',
+  'wezoimmozewi-5669@yopmail.com',
+  'groupemurennoixi-1759@yopmail.com',
+  'crisomadugre-6946@yopmail.com',
+  'dounigehulo-8207@yopmail.com',
+  'woinexusouddau-4235@yopmail.com',
+  'yallaugoitodde-6339@yopmail.com',
+  'visoveceri-6776@yopmail.com',
+  'lacetrovame-5476@yopmail.com',
+  'cretoppequowa-8969@yopmail.com',
+  'cretoppequowa-8969@yopmail.com',
+  'kalannepeinau-9196@yopmail.com',
+  'savoimmoubrero-6958@yopmail.com',
+  'criffamoulovei-2864@yopmail.com',
+  'cridawaubeje-1596@yopmail.com',
+  'greufellolleta-1178@yopmail.com',
+  'zinibanoufra-8460@yopmail.com',
+  'deiwecukoffou-7250@yopmail.com',
+  'breugrutoudduju-2003@yopmail.com',
+];
+
 const ASSESSMENT_TYPES = ['quiz', 'exam', 'assignment', 'practice'];
 const BATCH_TEMPLATES = [
   {
@@ -391,6 +427,30 @@ function buildPeople(role, count, seedTag, domain) {
   return people;
 }
 
+function uniqueEmails(emails) {
+  const seen = new Set();
+  const unique = [];
+
+  for (const rawEmail of emails || []) {
+    const email = toLower(rawEmail);
+    if (!email || seen.has(email)) continue;
+    seen.add(email);
+    unique.push(email);
+  }
+
+  return unique;
+}
+
+function buildPeopleFromEmails(role, emails, seedTag) {
+  const normalizedEmails = uniqueEmails(emails);
+  const generated = buildPeople(role, normalizedEmails.length, seedTag, 'example.com');
+
+  return normalizedEmails.map((email, index) => ({
+    ...generated[index],
+    email,
+  }));
+}
+
 function buildCourseSpecs(seedTag, count) {
   const prng = createPrng(`${seedTag}:courses`);
   return pickDistinct(COURSE_TEMPLATES, count, prng).map((template, index) => ({
@@ -655,7 +715,12 @@ async function ensureInstructor(api, person) {
     qualifications: ['Seeded Profile'],
   });
 
-  return { entity: extractData(response.data), created: true };
+  return {
+    entity: extractData(response.data),
+    created: true,
+    emailStatus: response.data?.emailStatus || null,
+    temporaryPassword: response.data?.temporaryPassword,
+  };
 }
 
 async function ensureStudent(api, person) {
@@ -938,11 +1003,11 @@ function track(statsBucket, result) {
 
 function buildScenario({ adminEmail, counts, seedTag }) {
   const domain = process.env.SEED_EMAIL_DOMAIN || String(adminEmail || '').split('@')[1] || 'example.com';
-  const instructors = buildPeople('instructor', counts.instructors, seedTag, domain).map((person, index) => ({
+  const instructors = buildPeopleFromEmails('instructor', FIXED_INSTRUCTOR_EMAILS, seedTag).map((person, index) => ({
     ...person,
     expertise: EXPERTISE_AREAS[index % EXPERTISE_AREAS.length],
   }));
-  const students = buildPeople('student', counts.students, seedTag, domain);
+  const students = buildPeopleFromEmails('student', FIXED_STUDENT_EMAILS, seedTag);
   const courses = buildCourseSpecs(seedTag, counts.courses);
 
   return {
@@ -966,6 +1031,8 @@ async function run() {
       counts,
       seedTag: DEFAULT_SEED_TAG,
     });
+    counts.instructors = scenario.instructors.length;
+    counts.students = scenario.students.length;
     const api = createApiClient(config.baseUrl);
     const stats = {
       instructors: { created: 0, found: 0 },
@@ -993,7 +1060,18 @@ async function run() {
       const result = await ensureInstructor(api, person);
       instructors.push({ ...person, ...result.entity });
       track(stats.instructors, result);
-      console.log(`- Instructor ${result.created ? 'created' : 'found'}: ${person.email}`);
+      const emailNote = result.created
+        ? result.emailStatus?.success
+          ? ' | onboarding email sent'
+          : result.emailStatus?.skipped
+            ? ' | onboarding email skipped'
+            : result.emailStatus?.message
+              ? ` | onboarding email issue: ${result.emailStatus.message}`
+              : result.temporaryPassword
+                ? ' | onboarding email not confirmed; temporary password retained'
+                : ''
+        : '';
+      console.log(`- Instructor ${result.created ? 'created' : 'found'}: ${person.email}${emailNote}`);
     }
 
     const students = [];

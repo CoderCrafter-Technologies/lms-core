@@ -1,6 +1,7 @@
 const { userRepository, courseRepository, batchRepository, liveClassRepository, enrollmentRepository, roleRepository } = require('../repositories');
 const { asyncHandler } = require('../middleware/errorHandler');
 const emailService = require('../services/emailService');
+const { preparePasswordSetup } = require('../services/passwordSetupService');
 const notificationService = require('../services/notificationService');
 const {
   toCanonicalTimezone,
@@ -746,12 +747,26 @@ const createInstructor = asyncHandler(async (req, res) => {
 
   const instructor = await userRepository.create(instructorData);
 
-  // Send welcome email
+  let welcomeEmailResult = { success: false, skipped: !sendEmail, message: '' };
   if (sendEmail) {
     try {
-      await emailService.sendInstructorWelcomeEmail(instructor, password);
+      const passwordSetup = await preparePasswordSetup(instructor, {
+        purpose: 'password_setup_by_admin'
+      });
+      const result = await emailService.sendInstructorWelcomeEmail(instructor, password, {
+        setupToken: passwordSetup.token,
+        setupOtp: passwordSetup.otp,
+        setupLinkExpiresInMinutes: passwordSetup.tokenExpiresMinutes,
+        setupOtpExpiresInMinutes: passwordSetup.otpExpiresMinutes
+      });
+      welcomeEmailResult = result || welcomeEmailResult;
     } catch (error) {
       console.error('Failed to send welcome email:', error);
+      welcomeEmailResult = {
+        success: false,
+        skipped: false,
+        message: error?.message || 'Failed to send welcome email'
+      };
     }
   }
 
@@ -765,6 +780,8 @@ const createInstructor = asyncHandler(async (req, res) => {
   res.status(201).json({
     success: true,
     message: 'Instructor created successfully',
+    emailStatus: welcomeEmailResult,
+    temporaryPassword: sendEmail && welcomeEmailResult?.success ? undefined : password,
     data: {
       id: instructor.id,
       firstName: instructor.firstName,

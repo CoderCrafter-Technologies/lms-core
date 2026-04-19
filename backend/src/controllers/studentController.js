@@ -919,6 +919,8 @@ const getMyEnrolledCourses = asyncHandler(async (req, res) => {
     completedClasses: enrollment.progress?.completedClasses || 0,
     totalClasses: enrollment.progress?.totalClasses || 0,
     attendedClasses: enrollment.attendance?.attendedClasses || 0,
+    attendanceRate: enrollment.attendance?.attendancePercentage || 0,
+    attendanceTotalClasses: enrollment.attendance?.totalClasses || 0,
     batch: enrollment.batchId,
     instructor: enrollment.batchId?.instructorId || null,
     instructorId: enrollment.batchId?.instructorId || null,

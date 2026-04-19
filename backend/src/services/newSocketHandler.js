@@ -1,6 +1,7 @@
 const LiveClass = require('../models/LiveClass');
 const notificationService = require('./notificationService');
 const { classifyAttendance, getClassDurationMinutes } = require('./liveClassAttendanceService');
+const { resolveLiveClassAccess } = require('./liveClassAccessService');
 const { deterministicRoomIdForClass } = require('../utils/liveClassRoomId');
 
 class SocketHandler {
@@ -316,6 +317,27 @@ class SocketHandler {
 
       if (!canonicalRoomId || !authenticatedUserId) {
         socket.emit('error', { message: 'Missing required data for joining class' });
+        return;
+      }
+
+      const liveClass = await LiveClass.findOne({ roomId: canonicalRoomId })
+        .select('_id roomId title status scheduledStartTime scheduledEndTime actualStartTime actualEndTime')
+        .lean()
+        .catch(() => null);
+
+      if (!liveClass) {
+        socket.emit('error', { message: 'Live class not found for this room' });
+        return;
+      }
+
+      const access = resolveLiveClassAccess(liveClass);
+      if (!access.canJoin) {
+        socket.emit('error', {
+          code: 'CLASS_NOT_JOINABLE',
+          state: access.state,
+          message: access.message,
+          access
+        });
         return;
       }
 

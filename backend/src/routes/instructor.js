@@ -1,6 +1,7 @@
 const express = require('express');
 const { body, param, query } = require('express-validator');
 const instructorController = require('../controllers/instructorController');
+const { getMyInstructorAttendanceOverview } = require('../controllers/attendanceOverviewController');
 const { authenticateToken: authMiddleware } = require('../middleware/auth');
 const { roleMiddleware, selfOrRoleMiddleware } = require('../middleware/roleMiddleware');
 
@@ -150,6 +151,11 @@ router.get('/my-classes',
 router.get('/dashboard',
   roleMiddleware(['instructor']),
   instructorController.getInstructorDashboard
+);
+
+router.get('/attendance/overview',
+  roleMiddleware(['instructor']),
+  getMyInstructorAttendanceOverview
 );
 
 /**

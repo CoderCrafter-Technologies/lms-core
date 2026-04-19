@@ -3,6 +3,7 @@ const { asyncHandler } = require('../middleware/errorHandler');
 const { validationResult } = require('express-validator');
 const notificationService = require('../services/notificationService');
 const { enrichLiveClassesForStudent } = require('../services/liveClassAttendanceService');
+const { withLiveClassAccess, withLiveClassAccessList } = require('../services/liveClassAccessService');
 const { generateLiveClassRoomId } = require('../utils/liveClassRoomId');
 const mongoose = require('mongoose');
 
@@ -46,6 +47,7 @@ const getLiveClasses = asyncHandler(async (req, res) => {
   const result = await liveClassRepository.paginate(filters, options);
 
   result.documents = await liveClassRepository.ensureRoomIds(result.documents);
+  result.documents = withLiveClassAccessList(result.documents);
   
   res.json({
     success: true,
@@ -81,9 +83,9 @@ const getLiveClassesByFilter = asyncHandler(async (req, res) => {
       { populate: commonPopulate, sort: { scheduledStartTime: 1 } }
     );
 
-    upcomingClasses = await liveClassRepository.ensureRoomIds(upcomingClasses);
-    ongoingClasses = await liveClassRepository.ensureRoomIds(ongoingClasses);
-    pastClasses = await liveClassRepository.ensureRoomIds(pastClasses);
+    upcomingClasses = withLiveClassAccessList(await liveClassRepository.ensureRoomIds(upcomingClasses));
+    ongoingClasses = withLiveClassAccessList(await liveClassRepository.ensureRoomIds(ongoingClasses));
+    pastClasses = withLiveClassAccessList(await liveClassRepository.ensureRoomIds(pastClasses));
 
     return res.json({
       success: true,
@@ -127,7 +129,7 @@ const getLiveClass = asyncHandler(async (req, res) => {
     });
   }
 
-  liveClass = await liveClassRepository.ensureRoomId(liveClass);
+  liveClass = withLiveClassAccess(await liveClassRepository.ensureRoomId(liveClass));
 
   res.json({
     success: true,
@@ -173,7 +175,7 @@ const getLiveClassByRoomId = asyncHandler(async (req, res) => {
     });
   }
 
-  liveClass = await liveClassRepository.ensureRoomId(liveClass);
+  liveClass = withLiveClassAccess(await liveClassRepository.ensureRoomId(liveClass));
 
   return res.status(200).json({
     success: true,
@@ -421,10 +423,11 @@ const getLiveClassesByBatch = asyncHandler(async (req, res) => {
   const classItems = liveClasses.map((liveClass) => (
     typeof liveClass.toObject === 'function' ? liveClass.toObject() : liveClass
   ));
+  const classItemsWithAccess = withLiveClassAccessList(classItems);
 
   const data = req.userRole === 'student'
-    ? enrichLiveClassesForStudent(classItems, req.userId)
-    : classItems;
+    ? enrichLiveClassesForStudent(classItemsWithAccess, req.userId)
+    : classItemsWithAccess;
   
   res.json({
     success: true,

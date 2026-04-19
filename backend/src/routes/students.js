@@ -1,6 +1,7 @@
 const express = require('express');
 const { body, param, query } = require('express-validator');
 const studentController = require('../controllers/studentController');
+const { getMyStudentAttendanceOverview } = require('../controllers/attendanceOverviewController');
 const { authenticateToken: authMiddleware } = require('../middleware/auth');
 const { roleMiddleware, selfOrRoleMiddleware } = require('../middleware/roleMiddleware');
 
@@ -224,6 +225,11 @@ router.get('/live-classes',
 router.get('/dashboard',
   roleMiddleware(['student']),
   studentController.getStudentDashboard
+);
+
+router.get('/attendance/overview',
+  roleMiddleware(['student']),
+  getMyStudentAttendanceOverview
 );
 
 /**

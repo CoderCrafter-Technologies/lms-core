@@ -22,6 +22,9 @@ const toObjectIdString = (value) => {
 const toPercent = (numerator, denominator) =>
   denominator > 0 ? Math.round((numerator / denominator) * 100) : 0;
 
+const toAveragePercent = (totalPercentage, itemCount) =>
+  itemCount > 0 ? Math.round(totalPercentage / itemCount) : 0;
+
 const formatPeriodLabel = (date) =>
   new Date(date).toLocaleDateString('en-US', {
     month: 'short',
@@ -172,6 +175,8 @@ const getInstructorAttendanceOverview = async ({ instructorId }) => {
   const summary = createSummary();
   const trendMap = new Map();
   const courseMap = new Map();
+  let totalAttendancePercentage = 0;
+  let totalAttendanceSamples = 0;
 
   for (const liveClass of endedClasses) {
     const batchId = toObjectIdString(liveClass.batchId);
@@ -190,10 +195,16 @@ const getInstructorAttendanceOverview = async ({ instructorId }) => {
     let present = 0;
     let leftEarly = 0;
     let absent = 0;
+    let attended = 0;
+    let classAttendancePercentageTotal = 0;
 
     enrollments.forEach((enrollment) => {
       const attendance = getStudentAttendanceForClass(liveClass, enrollment.studentId);
       const status = normalizeAttendanceStatus(attendance);
+      const attendancePercentage = Number(attendance.attendancePercentage || 0);
+
+      classAttendancePercentageTotal += attendancePercentage;
+      if (attendancePercentage > 0) attended += 1;
 
       if (status === 'PRESENT') present += 1;
       else if (status === 'LEFT_EARLY') leftEarly += 1;
@@ -201,28 +212,35 @@ const getInstructorAttendanceOverview = async ({ instructorId }) => {
     });
 
     const totalStudents = enrollments.length;
-    const averageAttendancePercentage = toPercent(present, totalStudents);
 
     summary.totalClasses += 1;
-    summary.attendedClasses += present;
+    summary.attendedClasses += attended;
     summary.presentClasses += present;
     summary.leftEarlyClasses += leftEarly;
     summary.absentClasses += absent;
+    totalAttendancePercentage += classAttendancePercentageTotal;
+    totalAttendanceSamples += totalStudents;
 
     const trendKey = groupKeyFromDate(liveClass.scheduledStartTime);
-    const trendBucket =
-      trendMap.get(trendKey) || createTrendBucket(trendKey, formatPeriodLabel(liveClass.scheduledStartTime));
-    trendBucket.totalClasses += totalStudents;
-    trendBucket.attendedClasses += present;
+    const trendBucket = trendMap.get(trendKey) || {
+      ...createTrendBucket(trendKey, formatPeriodLabel(liveClass.scheduledStartTime)),
+      totalAttendancePercentage: 0,
+      attendanceSamples: 0,
+    };
+    trendBucket.totalClasses += 1;
+    trendBucket.attendedClasses += attended;
     trendBucket.presentClasses += present;
     trendBucket.leftEarlyClasses += leftEarly;
     trendBucket.absentClasses += absent;
+    trendBucket.totalAttendancePercentage += classAttendancePercentageTotal;
+    trendBucket.attendanceSamples += totalStudents;
     trendMap.set(trendKey, trendBucket);
 
     const courseId = toObjectIdString(liveClass.batchId?.courseId);
     if (!courseId) continue;
 
-    const existingCourse = courseMap.get(courseId) || {
+    const courseKey = `${courseId}:${batchId || 'batch'}`;
+    const existingCourse = courseMap.get(courseKey) || {
       courseId,
       courseTitle: liveClass.batchId?.courseId?.title || 'Course',
       thumbnail: liveClass.batchId?.courseId?.thumbnail || '',
@@ -236,25 +254,43 @@ const getInstructorAttendanceOverview = async ({ instructorId }) => {
       leftEarlyClasses: 0,
       absentClasses: 0,
       classCount: 0,
+      totalAttendancePercentage: 0,
+      attendanceSamples: 0,
     };
 
-    existingCourse.totalClasses += totalStudents;
-    existingCourse.attendedClasses += present;
+    existingCourse.totalClasses += 1;
+    existingCourse.attendedClasses += attended;
     existingCourse.totalStudents += totalStudents;
     existingCourse.presentClasses += present;
     existingCourse.leftEarlyClasses += leftEarly;
     existingCourse.absentClasses += absent;
     existingCourse.classCount += 1;
-    existingCourse.attendancePercentage = toPercent(
-      existingCourse.attendedClasses,
-      existingCourse.totalClasses,
+    existingCourse.totalAttendancePercentage += classAttendancePercentageTotal;
+    existingCourse.attendanceSamples += totalStudents;
+    existingCourse.attendancePercentage = toAveragePercent(
+      existingCourse.totalAttendancePercentage,
+      existingCourse.attendanceSamples,
     );
 
-    courseMap.set(courseId, existingCourse);
+    courseMap.set(courseKey, existingCourse);
   }
 
-  summary.attendancePercentage = toPercent(summary.attendedClasses, summary.attendedClasses + summary.leftEarlyClasses + summary.absentClasses);
+  summary.attendancePercentage = toAveragePercent(totalAttendancePercentage, totalAttendanceSamples);
   summary.coursesCount = courseMap.size;
+
+  const trend = Array.from(trendMap.values())
+    .map((bucket) => ({
+      key: bucket.key,
+      label: bucket.label,
+      attendancePercentage: toAveragePercent(bucket.totalAttendancePercentage, bucket.attendanceSamples),
+      attendedClasses: bucket.attendedClasses,
+      totalClasses: bucket.totalClasses,
+      presentClasses: bucket.presentClasses,
+      leftEarlyClasses: bucket.leftEarlyClasses,
+      absentClasses: bucket.absentClasses,
+    }))
+    .sort((a, b) => String(a.key).localeCompare(String(b.key)))
+    .slice(-6);
 
   const courses = Array.from(courseMap.values())
     .map((course) => ({
@@ -275,7 +311,7 @@ const getInstructorAttendanceOverview = async ({ instructorId }) => {
     audience: 'instructor',
     period: 'month',
     summary,
-    trend: finalizeTrend(trendMap),
+    trend,
     courses,
   };
 };

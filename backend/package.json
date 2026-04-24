@@ -10,6 +10,7 @@
     "test:assessment": "node --test tests/assessment.integration.test.js",
     "test:assessment-flow": "node test_assessment_flow.js",
     "seed:test:full": "node sam.js",
+    "seed:assessments:batches": "node seed_batch_assessments.js",
     "build": "echo 'No build needed for Node.js'",
     "migrate": "node src/migrations/runner.js",
     "seed": "node src/migrations/seedData.js",

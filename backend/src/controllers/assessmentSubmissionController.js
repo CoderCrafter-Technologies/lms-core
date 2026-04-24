@@ -501,7 +501,12 @@ const getSubmission = asyncHandler(async (req, res) => {
   }
 
   // Check access permissions
-  const isStudent = submission.studentId._id.toString() === req.userId;
+  const submissionStudentId =
+    submission.studentId?._id?.toString?.() ||
+    submission.studentId?.id?.toString?.() ||
+    submission.studentId?.toString?.() ||
+    null;
+  const isStudent = Boolean(submissionStudentId && submissionStudentId === req.userId);
   const isInstructor = req.user.roleId.name === 'INSTRUCTOR';
   const isAdmin = req.user.roleId.name === 'ADMIN';
   const isManager = req.user.roleId.name === 'MANAGER';

@@ -1,13 +1,19 @@
 const { batchRepository, enrollmentRepository } = require('../repositories');
 
+const resolveRefId = (value) => {
+  if (!value) return null;
+  if (typeof value === 'string') return value;
+  return value._id || value.id || null;
+};
+
 const getAssessmentCourseId = (assessment) => {
   if (!assessment) return null;
-  return assessment.courseId?._id || assessment.courseId || null;
+  return resolveRefId(assessment.courseId);
 };
 
 const getAssessmentBatchId = (assessment) => {
   if (!assessment) return null;
-  return assessment.batchId?._id || assessment.batchId || null;
+  return resolveRefId(assessment.batchId);
 };
 
 const isAssessmentScheduledNow = (assessment, now = new Date()) => {
@@ -69,7 +75,7 @@ const getInstructorAssignmentScope = async (instructorId) => {
     .filter(Boolean);
   const courseIds = [...new Set(
     assignedBatches
-      .map((batch) => String(batch.courseId?._id || batch.courseId || ''))
+      .map((batch) => String(resolveRefId(batch.courseId) || ''))
       .filter(Boolean)
   )];
 
@@ -96,7 +102,7 @@ const buildInstructorAssessmentFilter = async (instructorId) => {
 
 const canInstructorAccessAssessment = async (assessment, instructorId) => {
   if (!assessment || !instructorId) return false;
-  const createdById = assessment.createdBy?._id || assessment.createdBy || null;
+  const createdById = resolveRefId(assessment.createdBy);
   if (String(createdById || '') === String(instructorId)) return true;
 
   const batchId = getAssessmentBatchId(assessment);
@@ -151,8 +157,8 @@ const buildStudentEnrollmentAssessmentClauses = (enrollments = []) => {
   const seen = new Set();
 
   enrollments.forEach((enrollment) => {
-    const courseId = String(enrollment.courseId?._id || enrollment.courseId || '');
-    const batchId = String(enrollment.batchId?._id || enrollment.batchId || '');
+    const courseId = String(resolveRefId(enrollment.courseId) || '');
+    const batchId = String(resolveRefId(enrollment.batchId) || '');
     if (!courseId) return;
 
     const key = `${courseId}:${batchId || 'course-wide'}`;

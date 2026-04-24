@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "8895763d-4113-42e2-b88c-164d4f1f3931"
+      }
+    },
+    "android": {
+      "package": "com.weboraaz.lmsfutureproof"
+    }
+  }
+}

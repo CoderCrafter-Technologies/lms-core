@@ -4,6 +4,7 @@ const { validationResult } = require('express-validator');
 const emailService = require('../services/emailService');
 const bcrypt = require('bcryptjs');
 const { syncEnrollmentProgress, syncEnrollmentsProgress } = require('../services/enrollmentProgressService');
+const { enrichLiveClassesForStudent } = require('../services/liveClassAttendanceService');
 const { withLiveClassAccessList } = require('../services/liveClassAccessService');
 
 /**

@@ -4,6 +4,11 @@ const { validationResult } = require('express-validator');
 const { buildExecutableCode } = require('../utils/codingRunner');
 const { executeCode: executeWithCompiler } = require('../services/codeExecutionService');
 const notificationService = require('../services/notificationService');
+const {
+  buildInstructorAssessmentFilter,
+  canInstructorAccessAssessment,
+  isAssessmentScheduledNow,
+} = require('../utils/assessmentAccess');
 
 const MAX_CODE_LENGTH = Number(process.env.CODE_EXEC_MAX_CODE_LENGTH || 20000);
 const MAX_STDIN_LENGTH = Number(process.env.CODE_EXEC_MAX_STDIN_LENGTH || 5000);
@@ -71,31 +76,6 @@ const sanitizeQuestionForStudent = (question, includeCorrectAnswers = false) => 
 
   return questionData;
 };
-const canInstructorAccessAssessment = async (assessment, instructorId) => {
-  if (!assessment) return false;
-  if (assessment.createdBy?.toString() === instructorId.toString()) return true;
-
-  const batchId = assessment.batchId?._id || assessment.batchId;
-  if (batchId) {
-    const batch = await batchRepository.findById(batchId);
-    if (batch?.instructorId?.toString() === instructorId.toString()) {
-      return true;
-    }
-  }
-
-  const courseId = assessment.courseId?._id || assessment.courseId;
-  if (courseId) {
-    const assignedBatch = await batchRepository.findOne({
-      courseId,
-      instructorId,
-      status: { $ne: 'CANCELLED' }
-    });
-    if (assignedBatch) return true;
-  }
-
-  return false;
-};
-
 const hasSubjectiveQuestions = (assessment) =>
   Array.isArray(assessment?.questions) &&
   assessment.questions.some((question) => ['short-answer', 'essay'].includes(question?.type));
@@ -147,7 +127,7 @@ const startAssessment = asyncHandler(async (req, res) => {
   // Check schedule
   const now = new Date();
   if (assessment.schedule.isScheduled) {
-    if (now < assessment.schedule.startDate || now > assessment.schedule.endDate) {
+    if (!isAssessmentScheduledNow(assessment, now)) {
       return res.status(400).json({
         success: false,
         message: 'Assessment is not currently available'
@@ -156,11 +136,16 @@ const startAssessment = asyncHandler(async (req, res) => {
   }
 
   // Get student's enrollment
-  const enrollment = await enrollmentRepository.findOne({
+  const enrollmentFilter = {
     studentId,
     courseId: assessment.courseId,
     status: 'ENROLLED'
-  });
+  };
+  if (assessment.batchId) {
+    enrollmentFilter.batchId = assessment.batchId;
+  }
+
+  const enrollment = await enrollmentRepository.findOne(enrollmentFilter);
   if (!enrollment) {
     return res.status(403).json({
       success: false,
@@ -559,10 +544,24 @@ const getStudentSubmissions = asyncHandler(async (req, res) => {
   const filters = { studentId };
   if (status) filters.status = status;
 
-  // If courseId provided, filter by assessments from that course
-  if (courseId) {
-    const assessments = await assessmentRepository.findByCourse(courseId);
-    const assessmentIds = assessments.map(a => a._id);
+  if (req.user.roleId.name === 'INSTRUCTOR') {
+    const assessmentFilter = await buildInstructorAssessmentFilter(req.userId);
+    if (courseId) {
+      assessmentFilter.courseId = courseId;
+    }
+    assessmentFilter.status = { $ne: 'deleted' };
+
+    const scopedAssessments = await assessmentRepository.find(assessmentFilter, { select: '_id' });
+    const assessmentIds = scopedAssessments
+      .map((assessment) => assessment.id || assessment._id)
+      .filter(Boolean);
+    filters.assessmentId = assessmentIds.length > 0 ? { $in: assessmentIds } : { $in: [] };
+  } else if (courseId) {
+    const assessments = await assessmentRepository.find({
+      courseId,
+      status: { $ne: 'deleted' }
+    }, { select: '_id' });
+    const assessmentIds = assessments.map(a => a.id || a._id).filter(Boolean);
     filters.assessmentId = { $in: assessmentIds };
   }
 
@@ -691,9 +690,11 @@ const getAssessmentResults = asyncHandler(async (req, res) => {
         type: assessment.type,
         grading: assessment.grading,
         settings: {
+          attempts: assessment.settings?.attempts,
           showCorrectAnswers: assessment.settings?.showCorrectAnswers,
           allowReview: assessment.settings?.allowReview
-        }
+        },
+        schedule: assessment.schedule
       },
       questions: sanitizedQuestions,
       attempts: submissions,
@@ -1070,6 +1071,23 @@ const getCourseGradebook = asyncHandler(async (req, res) => {
  */
 const getSubmissionStats = asyncHandler(async (req, res) => {
   const { id } = req.params;
+  const assessment = await assessmentRepository.findById(id, {
+    select: 'createdBy courseId batchId'
+  });
+
+  if (!assessment) {
+    return res.status(404).json({
+      success: false,
+      message: 'Assessment not found'
+    });
+  }
+
+  if (req.user.roleId.name === 'INSTRUCTOR' && !(await canInstructorAccessAssessment(assessment, req.userId))) {
+    return res.status(403).json({
+      success: false,
+      message: 'Unauthorized access'
+    });
+  }
   
   const stats = await assessmentSubmissionRepository.getSubmissionStats(id);
   

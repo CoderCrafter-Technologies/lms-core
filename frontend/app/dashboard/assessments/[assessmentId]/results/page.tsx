@@ -30,8 +30,14 @@ interface Assessment {
     passingScore: number
   }
   settings: {
+    attempts?: number
     showCorrectAnswers?: boolean
     allowReview?: boolean
+  }
+  schedule?: {
+    isScheduled?: boolean
+    startDate?: string
+    endDate?: string
   }
   questions?: Question[]
 }
@@ -180,6 +186,26 @@ export default function AssessmentResultsPage() {
     [allSubmissions, selectedSubmissionId]
   )
 
+  const canRetakeAssessment = useMemo(() => {
+    if (!isStudent || !assessment) return false
+
+    const attemptsAllowed = safeNumber(assessment.settings?.attempts ?? 1)
+    if (attemptsAllowed > 0 && studentAttempts.length >= attemptsAllowed) {
+      return false
+    }
+
+    const schedule = assessment.schedule
+    if (!schedule?.isScheduled) return true
+
+    const now = Date.now()
+    const startDate = schedule.startDate ? new Date(schedule.startDate).getTime() : null
+    const endDate = schedule.endDate ? new Date(schedule.endDate).getTime() : null
+
+    if (startDate && now < startDate) return false
+    if (endDate && now > endDate) return false
+    return true
+  }, [assessment, isStudent, studentAttempts.length])
+
   const questionMap = useMemo(() => {
     const entries = (assessment?.questions || []).map((question) => [question.id, question] as const)
     return new Map(entries)
@@ -262,7 +288,7 @@ export default function AssessmentResultsPage() {
           <Button variant="outline" onClick={() => router.back()}>
             Back
           </Button>
-          {isStudent && (
+          {isStudent && canRetakeAssessment && (
             <Button
               onClick={() => {
                 const takeUrl = `/assessment-player/${assessmentId}?autoStart=1`

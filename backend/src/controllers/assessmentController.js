@@ -2,31 +2,14 @@ const { assessmentRepository, courseRepository, batchRepository, assessmentSubmi
 const { asyncHandler } = require('../middleware/errorHandler');
 const { validationResult } = require('express-validator');
 const notificationService = require('../services/notificationService');
-
-const canInstructorAccessAssessment = async (assessment, instructorId) => {
-  if (!assessment) return false;
-  if (assessment.createdBy?.toString() === instructorId.toString()) return true;
-
-  const batchId = assessment.batchId?._id || assessment.batchId;
-  if (batchId) {
-    const batch = await batchRepository.findById(batchId);
-    if (batch?.instructorId?.toString() === instructorId.toString()) {
-      return true;
-    }
-  }
-
-  const courseId = assessment.courseId?._id || assessment.courseId;
-  if (courseId) {
-    const assignedBatch = await batchRepository.findOne({
-      courseId,
-      instructorId,
-      status: { $ne: 'CANCELLED' }
-    });
-    if (assignedBatch) return true;
-  }
-
-  return false;
-};
+const {
+  buildAvailableAssessmentsFilterForEnrollments,
+  buildInstructorAssessmentFilter,
+  canInstructorAccessAssessment,
+  canStudentAccessAssessment,
+  getAssessmentBatchId,
+  getAssessmentCourseId,
+} = require('../utils/assessmentAccess');
 
 const getAssessmentRecipientStudentIds = async (assessment) => {
   const courseId = assessment.courseId?._id || assessment.courseId;
@@ -63,6 +46,94 @@ const ensureInstructorAssessmentScope = async (assessment, req, res) => {
   return true;
 };
 
+const ensureStudentAssessmentScope = async (
+  assessment,
+  studentId,
+  res,
+  {
+    requirePublished = true,
+    requireAvailability = false,
+  } = {}
+) => {
+  if (!assessment) {
+    res.status(404).json({
+      success: false,
+      message: 'Assessment not found'
+    });
+    return false;
+  }
+
+  const allowed = await canStudentAccessAssessment(assessment, studentId, {
+    requirePublished,
+    requireAvailability,
+  });
+  if (!allowed) {
+    res.status(403).json({
+      success: false,
+      message: 'Unauthorized access'
+    });
+    return false;
+  }
+
+  return true;
+};
+
+const ensureInstructorCanManageAssessmentPayload = async ({
+  courseId,
+  batchId,
+  instructorId,
+  res,
+}) => {
+  if (!instructorId) return true;
+
+  if (batchId) {
+    const batch = await batchRepository.findById(batchId, { select: 'instructorId courseId status' });
+    if (!batch) {
+      res.status(404).json({
+        success: false,
+        message: 'Batch not found'
+      });
+      return false;
+    }
+
+    if (String(batch.instructorId || '') !== String(instructorId)) {
+      res.status(403).json({
+        success: false,
+        message: 'Unauthorized access'
+      });
+      return false;
+    }
+
+    if (courseId && String(batch.courseId || '') !== String(courseId)) {
+      res.status(400).json({
+        success: false,
+        message: 'Batch does not belong to the selected course'
+      });
+      return false;
+    }
+
+    return true;
+  }
+
+  if (courseId) {
+    const assignedBatch = await batchRepository.findOne({
+      courseId,
+      instructorId,
+      status: { $ne: 'CANCELLED' }
+    });
+
+    if (!assignedBatch) {
+      res.status(403).json({
+        success: false,
+        message: 'Unauthorized access'
+      });
+      return false;
+    }
+  }
+
+  return true;
+};
+
 /**
  * Get all assessments with filtering and pagination
  */
@@ -79,7 +150,11 @@ const getAssessments = asyncHandler(async (req, res) => {
   if (courseId) filters.courseId = courseId;
   if (batchId) filters.batchId = batchId;
   if (type) filters.type = type;
-  if (status) filters.status = status;
+  if (status) {
+    filters.status = status;
+  } else {
+    filters.status = { $ne: 'deleted' };
+  }
   if (search) {
     filters.$or = [
       { title: { $regex: search, $options: 'i' } },
@@ -89,7 +164,7 @@ const getAssessments = asyncHandler(async (req, res) => {
 
   // For instructors, filter by assessments they created
   if (req.user.roleId.name === 'INSTRUCTOR') {
-    filters.createdBy = req.user.id;
+    Object.assign(filters, await buildInstructorAssessmentFilter(req.userId));
   }
 
   const options = {
@@ -132,6 +207,18 @@ const getAssessment = asyncHandler(async (req, res) => {
       success: false,
       message: 'Assessment not found'
     });
+  }
+
+  if (req.user.roleId.name === 'STUDENT') {
+    if (!(await ensureStudentAssessmentScope(assessment, req.userId, res))) {
+      return;
+    }
+  }
+
+  if (req.user.roleId.name === 'INSTRUCTOR') {
+    if (!(await ensureInstructorAssessmentScope(assessment, req, res))) {
+      return;
+    }
   }
 
   // Remove correct answers if not authorized
@@ -198,6 +285,23 @@ const createAssessment = asyncHandler(async (req, res) => {
         message: 'Batch not found'
       });
     }
+
+    if (String(batch.courseId || '') !== String(req.body.courseId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Batch does not belong to the selected course'
+      });
+    }
+  }
+
+  if (req.user.roleId.name === 'INSTRUCTOR') {
+    const allowed = await ensureInstructorCanManageAssessmentPayload({
+      courseId: req.body.courseId,
+      batchId: req.body.batchId,
+      instructorId: req.userId,
+      res,
+    });
+    if (!allowed) return;
   }
 
   const assessmentData = {
@@ -237,12 +341,62 @@ const createAssessment = asyncHandler(async (req, res) => {
  */
 const updateAssessment = asyncHandler(async (req, res) => {
   const { id } = req.params;
+  const existingAssessment = await assessmentRepository.findById(id);
+  if (!(await ensureInstructorAssessmentScope(existingAssessment, req, res))) {
+    return;
+  }
+
+  const nextCourseId = req.body.courseId?._id || req.body.courseId || getAssessmentCourseId(existingAssessment);
+  const nextBatchId =
+    req.body.batchId === null
+      ? null
+      : req.body.batchId?._id || req.body.batchId || getAssessmentBatchId(existingAssessment);
+
+  const course = await courseRepository.findById(nextCourseId);
+  if (!course) {
+    return res.status(404).json({
+      success: false,
+      message: 'Course not found'
+    });
+  }
+
+  if (nextBatchId) {
+    const batch = await batchRepository.findById(nextBatchId);
+    if (!batch) {
+      return res.status(404).json({
+        success: false,
+        message: 'Batch not found'
+      });
+    }
+
+    if (String(batch.courseId || '') !== String(nextCourseId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Batch does not belong to the selected course'
+      });
+    }
+  }
+
+  if (req.user.roleId.name === 'INSTRUCTOR') {
+    const allowed = await ensureInstructorCanManageAssessmentPayload({
+      courseId: nextCourseId,
+      batchId: nextBatchId,
+      instructorId: req.userId,
+      res,
+    });
+    if (!allowed) return;
+  }
+
   const updates = {
     ...req.body,
-    courseId: req.body.courseId?._id || req.body.courseId,
-    createdBy: req.body.createdBy?.id || req.body.createdBy,
+    courseId: nextCourseId,
+    batchId: nextBatchId,
     lastModifiedBy: req.userId
   };
+  delete updates.createdBy;
+  delete updates.publishedAt;
+  delete updates.stats;
+
   const assessment = await assessmentRepository.updateById(id, updates);
   
   if (!assessment) {
@@ -264,6 +418,10 @@ const updateAssessment = asyncHandler(async (req, res) => {
  */
 const deleteAssessment = asyncHandler(async (req, res) => {
   const { id } = req.params;
+  const existingAssessment = await assessmentRepository.findById(id);
+  if (!(await ensureInstructorAssessmentScope(existingAssessment, req, res))) {
+    return;
+  }
   
   // Soft delete by updating status
   const assessment = await assessmentRepository.updateById(id, { 
@@ -289,6 +447,10 @@ const deleteAssessment = asyncHandler(async (req, res) => {
  */
 const publishAssessment = asyncHandler(async (req, res) => {
   const { id } = req.params;
+  const existingAssessment = await assessmentRepository.findById(id);
+  if (!(await ensureInstructorAssessmentScope(existingAssessment, req, res))) {
+    return;
+  }
   
   const assessment = await assessmentRepository.updateById(id, {
     status: 'published',
@@ -339,6 +501,11 @@ const duplicateAssessment = asyncHandler(async (req, res) => {
     });
   }
 
+  const existingAssessment = await assessmentRepository.findById(id);
+  if (!(await ensureInstructorAssessmentScope(existingAssessment, req, res))) {
+    return;
+  }
+
   const duplicated = await assessmentRepository.duplicate(id, title, req.userId);
   
   res.status(201).json({
@@ -354,12 +521,72 @@ const duplicateAssessment = asyncHandler(async (req, res) => {
 const getAssessmentsByCourse = asyncHandler(async (req, res) => {
   const { courseId } = req.params;
   const { batchId } = req.query;
-  
-  let assessments;
-  if (batchId) {
-    assessments = await assessmentRepository.findByBatch(batchId);
+
+  let assessments = [];
+
+  if (req.user.roleId.name === 'STUDENT') {
+    const enrollmentFilter = {
+      studentId: req.userId,
+      courseId,
+      status: 'ENROLLED'
+    };
+    if (batchId) enrollmentFilter.batchId = batchId;
+
+    const enrollments = await enrollmentRepository.find(enrollmentFilter);
+    if (enrollments.length === 0) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized access'
+      });
+    }
+
+    assessments = await assessmentRepository.find(
+      buildAvailableAssessmentsFilterForEnrollments(enrollments),
+      {
+        populate: [
+          { path: 'courseId', select: 'title' },
+          { path: 'batchId', select: 'name batchCode' },
+          { path: 'createdBy', select: 'firstName lastName email' }
+        ],
+        sort: { createdAt: -1 }
+      }
+    );
+  } else if (req.user.roleId.name === 'INSTRUCTOR') {
+    const baseFilter = {
+      ...(await buildInstructorAssessmentFilter(req.userId)),
+      courseId,
+      status: { $ne: 'deleted' }
+    };
+
+    if (batchId) {
+      baseFilter.batchId = batchId;
+    }
+
+    assessments = await assessmentRepository.find(baseFilter, {
+      populate: [
+        { path: 'courseId', select: 'title' },
+        { path: 'batchId', select: 'name batchCode' },
+        { path: 'createdBy', select: 'firstName lastName email' }
+      ],
+      sort: { createdAt: -1 }
+    });
   } else {
-    assessments = await assessmentRepository.findByCourse(courseId);
+    const filter = {
+      courseId,
+      status: { $ne: 'deleted' }
+    };
+    if (batchId) {
+      filter.$or = [{ batchId }, { batchId: null }, { batchId: { $exists: false } }];
+    }
+
+    assessments = await assessmentRepository.find(filter, {
+      populate: [
+        { path: 'courseId', select: 'title' },
+        { path: 'batchId', select: 'name batchCode' },
+        { path: 'createdBy', select: 'firstName lastName email' }
+      ],
+      sort: { createdAt: -1 }
+    });
   }
   
   res.json({
@@ -374,56 +601,42 @@ const getAssessmentsByCourse = asyncHandler(async (req, res) => {
 const getAvailableAssessments = asyncHandler(async (req, res) => {
   const { courseId, batchId } = req.params;
   const studentId = req.user?.id || req.userId;
-  
-  let assessments;
-  
-  if (courseId) {
-    // Get assessments for specific course/batch
-    assessments = await assessmentRepository.findAvailableForStudent(
-      studentId, 
-      courseId, 
-      batchId
-    );
-  } else {
-    // Get all available assessments for the student across all enrolled courses
-    // Get student's enrollments
-    const enrollments = await enrollmentRepository.find({
-      studentId,
-      status: 'ENROLLED'
-    });
-    
-    if (enrollments.length === 0) {
-      return res.json({
-        success: true,
-        data: []
+
+  const enrollmentFilter = {
+    studentId,
+    status: 'ENROLLED'
+  };
+  if (courseId) enrollmentFilter.courseId = courseId;
+  if (batchId) enrollmentFilter.batchId = batchId;
+
+  const enrollments = await enrollmentRepository.find(enrollmentFilter);
+  if (enrollments.length === 0) {
+    if (courseId || batchId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized access'
       });
     }
-    
-    // Get all assessments for enrolled courses and batches
-    const courseIds = enrollments.map(e => e.courseId);
-    const batchIds = enrollments.map(e => e.batchId);
-    
-    assessments = await assessmentRepository.find({
-      $and: [
-        { status: 'published' },
-        {
-          $or: [
-            { courseId: { $in: courseIds }, batchId: { $in: batchIds } },
-            { courseId: { $in: courseIds }, batchId: null } // Course-wide assessments
-          ]
-        }
-      ]
-    }, {
+
+    return res.json({
+      success: true,
+      data: []
+    });
+  }
+
+  const assessments = await assessmentRepository.find(
+    buildAvailableAssessmentsFilterForEnrollments(enrollments),
+    {
       populate: [
         { path: 'courseId', select: 'title' },
         { path: 'batchId', select: 'name batchCode' }
       ],
       sort: { createdAt: -1 }
-    });
-  }
+    }
+  );
 
   // Get student's submissions for these assessments
-  const assessmentIds = assessments.map(a => a._id);
+  const assessmentIds = assessments.map(a => a.id || a._id).filter(Boolean);
   const submissions = await assessmentSubmissionRepository.find({
     assessmentId: { $in: assessmentIds },
     studentId

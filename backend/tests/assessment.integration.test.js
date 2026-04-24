@@ -136,3 +136,182 @@ test(
     }
   }
 );
+
+test(
+  'student available endpoints exclude future scheduled assessments',
+  { skip: !SHOULD_RUN },
+  async () => {
+    const [adminToken, studentToken] = await Promise.all([
+      login(ADMIN_EMAIL, ADMIN_PASSWORD),
+      login(STUDENT_EMAIL, STUDENT_PASSWORD)
+    ]);
+
+    const adminClient = createClient(adminToken);
+    const studentClient = createClient(studentToken);
+    let createdAssessmentId = null;
+
+    try {
+      const enrollmentsResponse = await studentClient.get('/students/my-enrollments');
+      const enrollments = enrollmentsResponse.data?.data || [];
+      assert.ok(Array.isArray(enrollments) && enrollments.length > 0, 'Student has no enrollments');
+
+      const enrollment = enrollments[0];
+      const courseId = getId(enrollment.courseId);
+      const batchId = getId(enrollment.batchId);
+      assert.ok(courseId, 'Could not resolve courseId from enrollment');
+
+      const unique = Date.now();
+      const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const twoDaysLater = new Date(Date.now() + 48 * 60 * 60 * 1000);
+      const createPayload = {
+        title: `Assessment Future Window ${unique}`,
+        description: 'Future assessment should not appear in available endpoints',
+        type: 'quiz',
+        courseId,
+        ...(batchId ? { batchId } : {}),
+        settings: {
+          timeLimit: 30,
+          attempts: 1,
+          shuffleQuestions: false,
+          shuffleOptions: false,
+          showResults: 'immediately',
+          showCorrectAnswers: true,
+          allowReview: true
+        },
+        grading: {
+          passingScore: 50,
+          gradingMethod: 'automatic',
+          weightage: 100
+        },
+        schedule: {
+          isScheduled: true,
+          startDate: tomorrow.toISOString(),
+          endDate: twoDaysLater.toISOString(),
+          timezone: 'UTC'
+        },
+        questions: [
+          {
+            id: `q_future_${unique}`,
+            type: 'true-false',
+            question: 'Future question',
+            correctAnswer: true,
+            points: 1
+          }
+        ]
+      };
+
+      const createResponse = await adminClient.post('/assessments', createPayload);
+      createdAssessmentId = getId(createResponse.data?.data);
+      assert.ok(createdAssessmentId, 'Future assessment was not created');
+
+      await adminClient.patch(`/assessments/${createdAssessmentId}/publish`);
+
+      const [availableResponse, courseAvailableResponse] = await Promise.all([
+        studentClient.get('/assessments/available'),
+        studentClient.get(`/assessments/course/${courseId}`)
+      ]);
+
+      const availableAssessments = availableResponse.data?.data || [];
+      const courseAssessments = courseAvailableResponse.data?.data || [];
+
+      assert.equal(
+        availableAssessments.some((item) => getId(item) === createdAssessmentId),
+        false,
+        'Future scheduled assessment leaked into /assessments/available'
+      );
+      assert.equal(
+        courseAssessments.some((item) => getId(item) === createdAssessmentId),
+        false,
+        'Future scheduled assessment leaked into course-specific student assessment list'
+      );
+    } finally {
+      if (createdAssessmentId) {
+        try {
+          await adminClient.delete(`/assessments/${createdAssessmentId}`);
+        } catch (cleanupError) {
+          console.warn(
+            `Cleanup warning for assessment ${createdAssessmentId}: ${cleanupError.message || cleanupError}`
+          );
+        }
+      }
+    }
+  }
+);
+
+test(
+  'student cannot read draft assessment details directly',
+  { skip: !SHOULD_RUN },
+  async () => {
+    const [adminToken, studentToken] = await Promise.all([
+      login(ADMIN_EMAIL, ADMIN_PASSWORD),
+      login(STUDENT_EMAIL, STUDENT_PASSWORD)
+    ]);
+
+    const adminClient = createClient(adminToken);
+    const studentClient = createClient(studentToken);
+    let createdAssessmentId = null;
+
+    try {
+      const enrollmentsResponse = await studentClient.get('/students/my-enrollments');
+      const enrollments = enrollmentsResponse.data?.data || [];
+      assert.ok(Array.isArray(enrollments) && enrollments.length > 0, 'Student has no enrollments');
+
+      const enrollment = enrollments[0];
+      const courseId = getId(enrollment.courseId);
+      const batchId = getId(enrollment.batchId);
+      assert.ok(courseId, 'Could not resolve courseId from enrollment');
+
+      const unique = Date.now();
+      const createPayload = {
+        title: `Assessment Draft Access ${unique}`,
+        description: 'Draft detail should not be readable by student',
+        type: 'quiz',
+        courseId,
+        ...(batchId ? { batchId } : {}),
+        status: 'draft',
+        settings: {
+          timeLimit: 30,
+          attempts: 1,
+          shuffleQuestions: false,
+          shuffleOptions: false,
+          showResults: 'immediately',
+          showCorrectAnswers: true,
+          allowReview: true
+        },
+        grading: {
+          passingScore: 50,
+          gradingMethod: 'automatic',
+          weightage: 100
+        },
+        questions: [
+          {
+            id: `q_draft_${unique}`,
+            type: 'true-false',
+            question: 'Draft question',
+            correctAnswer: true,
+            points: 1
+          }
+        ]
+      };
+
+      const createResponse = await adminClient.post('/assessments', createPayload);
+      createdAssessmentId = getId(createResponse.data?.data);
+      assert.ok(createdAssessmentId, 'Draft assessment was not created');
+
+      await assert.rejects(
+        () => studentClient.get(`/assessments/${createdAssessmentId}`),
+        (error) => error?.response?.status === 403
+      );
+    } finally {
+      if (createdAssessmentId) {
+        try {
+          await adminClient.delete(`/assessments/${createdAssessmentId}`);
+        } catch (cleanupError) {
+          console.warn(
+            `Cleanup warning for assessment ${createdAssessmentId}: ${cleanupError.message || cleanupError}`
+          );
+        }
+      }
+    }
+  }
+);

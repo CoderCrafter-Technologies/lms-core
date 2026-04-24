@@ -15,10 +15,17 @@ class LiveClassRepository extends BaseRepository {
   async findByBatch(batchId) {
     return await this.find({ batchId }, {
       sort: { scheduledStartTime: 1 },
-      populate: {
-        path: 'instructorId',
-        select: 'firstName lastName email'
-      }
+      populate: [
+        {
+          path: 'instructorId',
+          select: 'firstName lastName email'
+        },
+        {
+          path: 'batchId',
+          select: 'name batchCode schedule courseId',
+          populate: { path: 'courseId', select: 'title' }
+        }
+      ]
     });
   }
 

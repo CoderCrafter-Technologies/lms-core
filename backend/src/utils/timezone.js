@@ -142,10 +142,36 @@ const getDatePartsInTimezone = (dateInput, timeZone) => {
   };
 };
 
+const parseDateTimeInput = (input, timeZone = 'UTC') => {
+  const value = String(input || '').trim();
+  if (!value) return null;
+
+  const normalizedTimezone = toCanonicalTimezone(timeZone) || 'UTC';
+  const localDateTimeMatch = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(value);
+
+  if (localDateTimeMatch) {
+    return zonedDateTimeToUtc(
+      {
+        year: Number(localDateTimeMatch[1]),
+        month: Number(localDateTimeMatch[2]),
+        day: Number(localDateTimeMatch[3]),
+        hour: Number(localDateTimeMatch[4]),
+        minute: Number(localDateTimeMatch[5]),
+        second: Number(localDateTimeMatch[6] || 0)
+      },
+      normalizedTimezone
+    );
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
 module.exports = {
   DAY_NAMES,
   toCanonicalTimezone,
   parseDateInput,
+  parseDateTimeInput,
   addDaysToDateParts,
   compareDateParts,
   getDayNameForDateParts,

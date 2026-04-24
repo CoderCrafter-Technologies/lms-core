@@ -5,7 +5,33 @@ const notificationService = require('../services/notificationService');
 const { enrichLiveClassesForStudent } = require('../services/liveClassAttendanceService');
 const { withLiveClassAccess, withLiveClassAccessList } = require('../services/liveClassAccessService');
 const { generateLiveClassRoomId } = require('../utils/liveClassRoomId');
+const { parseDateTimeInput } = require('../utils/timezone');
+const { getSocketHandler } = require('../services/socketBridge');
 const mongoose = require('mongoose');
+
+const emitLiveClassUpdate = async (liveClass, status) => {
+  if (!liveClass?.batchId) return;
+
+  const enrollments = await enrollmentRepository.find(
+    { batchId: liveClass.batchId, status: 'ENROLLED' },
+    { select: 'studentId' }
+  );
+
+  const recipients = [
+    liveClass.instructorId?.toString?.() || liveClass.instructorId,
+    ...enrollments.map((enrollment) => enrollment.studentId?.toString()).filter(Boolean)
+  ].filter(Boolean);
+
+  const socketHandler = getSocketHandler();
+  socketHandler?.emitToUsers(recipients, 'live-class-updated', {
+    classId: liveClass.id || liveClass._id?.toString(),
+    batchId: liveClass.batchId?.toString?.() || liveClass.batchId,
+    roomId: liveClass.roomId,
+    status,
+    scheduledStartTime: liveClass.scheduledStartTime,
+    scheduledEndTime: liveClass.scheduledEndTime
+  });
+};
 
 /**
  * Get all live classes with filtering
@@ -207,11 +233,31 @@ const createLiveClass = asyncHandler(async (req, res) => {
     });
   }
 
+  const timezone = batch?.schedule?.timezone || 'UTC';
+  const scheduledStartTime = parseDateTimeInput(req.body.scheduledStartTime, timezone);
+  const scheduledEndTime = parseDateTimeInput(req.body.scheduledEndTime, timezone);
+
+  if (!scheduledStartTime || !scheduledEndTime) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid scheduled start or end time'
+    });
+  }
+
+  if (scheduledEndTime <= scheduledStartTime) {
+    return res.status(400).json({
+      success: false,
+      message: 'Scheduled end time must be after scheduled start time'
+    });
+  }
+
   // Generate room ID
   const roomId = generateLiveClassRoomId();
 
   const liveClassData = {
     ...req.body,
+    scheduledStartTime,
+    scheduledEndTime,
     roomId,
     instructorId: req.body.instructorId || req.userId,
     createdBy: req.userId,
@@ -268,6 +314,15 @@ const createLiveClass = asyncHandler(async (req, res) => {
  */
 const updateLiveClass = asyncHandler(async (req, res) => {
   const { id } = req.params;
+  const existingLiveClass = await liveClassRepository.findById(id);
+
+  if (!existingLiveClass) {
+    return res.status(404).json({
+      success: false,
+      message: 'Live class not found'
+    });
+  }
+
   const updates = { ...(req.body || {}) };
 
   // Room IDs are immutable to keep all participants on the same class channel.
@@ -275,14 +330,44 @@ const updateLiveClass = asyncHandler(async (req, res) => {
   delete updates._id;
   delete updates.id;
 
-  const liveClass = await liveClassRepository.updateById(id, updates);
-  
-  if (!liveClass) {
-    return res.status(404).json({
+  const targetBatchId = updates.batchId || existingLiveClass.batchId;
+  if (targetBatchId) {
+    const batch = await batchRepository.findById(targetBatchId);
+    const timezone = batch?.schedule?.timezone || 'UTC';
+
+    if (typeof updates.scheduledStartTime !== 'undefined') {
+      const parsedStart = parseDateTimeInput(updates.scheduledStartTime, timezone);
+      if (!parsedStart) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid scheduled start time'
+        });
+      }
+      updates.scheduledStartTime = parsedStart;
+    }
+
+    if (typeof updates.scheduledEndTime !== 'undefined') {
+      const parsedEnd = parseDateTimeInput(updates.scheduledEndTime, timezone);
+      if (!parsedEnd) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid scheduled end time'
+        });
+      }
+      updates.scheduledEndTime = parsedEnd;
+    }
+  }
+
+  const nextStartTime = updates.scheduledStartTime || existingLiveClass.scheduledStartTime;
+  const nextEndTime = updates.scheduledEndTime || existingLiveClass.scheduledEndTime;
+  if (nextStartTime && nextEndTime && new Date(nextEndTime) <= new Date(nextStartTime)) {
+    return res.status(400).json({
       success: false,
-      message: 'Live class not found'
+      message: 'Scheduled end time must be after scheduled start time'
     });
   }
+
+  const liveClass = await liveClassRepository.updateById(id, updates);
 
   res.json({
     success: true,
@@ -335,6 +420,8 @@ const startLiveClass = asyncHandler(async (req, res) => {
     message: 'Live class started successfully',
     data: liveClass
   });
+
+  await emitLiveClassUpdate(liveClass, 'LIVE');
 });
 
 /**
@@ -360,6 +447,8 @@ const endLiveClass = asyncHandler(async (req, res) => {
     message: 'Live class ended successfully',
     data: liveClass
   });
+
+  await emitLiveClassUpdate(liveClass, 'ENDED');
 });
 
 /**

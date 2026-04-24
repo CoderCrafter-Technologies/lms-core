@@ -4,6 +4,7 @@ const { validationResult } = require('express-validator');
 const emailService = require('../services/emailService');
 const bcrypt = require('bcryptjs');
 const { syncEnrollmentProgress, syncEnrollmentsProgress } = require('../services/enrollmentProgressService');
+const { withLiveClassAccessList } = require('../services/liveClassAccessService');
 
 /**
  * Get all students with filtering and pagination
@@ -655,17 +656,18 @@ const getUpcomingClasses = asyncHandler(async (req, res) => {
     },
     {
       populate: [
-        { path: 'batchId', select: 'name courseId' },
+        { path: 'batchId', select: 'name courseId schedule' },
         { path: 'instructorId', select: 'firstName lastName email' }
       ],
       sort: { scheduledStartTime: 1 }
     }
   );
   liveClasses = await liveClassRepository.ensureRoomIds(liveClasses);
+  liveClasses = withLiveClassAccessList(liveClasses);
 
   res.json({
     success: true,
-    data: liveClasses
+    data: enrichLiveClassesForStudent(liveClasses, studentId)
   });
 });
 
@@ -697,17 +699,18 @@ const getPastClasses = asyncHandler(async (req, res) => {
     },
     {
       populate: [
-        { path: 'batchId', select: 'name courseId' },
+        { path: 'batchId', select: 'name courseId schedule' },
         { path: 'instructorId', select: 'firstName lastName email' }
       ],
       sort: { scheduledStartTime: 1 }
     }
   );
   liveClasses = await liveClassRepository.ensureRoomIds(liveClasses);
+  liveClasses = withLiveClassAccessList(liveClasses);
 
   res.json({
     success: true,
-    data: liveClasses
+    data: enrichLiveClassesForStudent(liveClasses, studentId)
   });
 });
 
@@ -743,17 +746,18 @@ const getLiveClasses = asyncHandler(async (req, res) => {
     },
     {
       populate: [
-        { path: 'batchId', select: 'name courseId' },
+        { path: 'batchId', select: 'name courseId schedule' },
         { path: 'instructorId', select: 'firstName lastName email' }
       ],
       sort: { scheduledStartTime: 1 }
     }
   );
   liveClasses = await liveClassRepository.ensureRoomIds(liveClasses);
+  liveClasses = withLiveClassAccessList(liveClasses);
 
   res.json({
     success: true,
-    data: liveClasses
+    data: enrichLiveClassesForStudent(liveClasses, studentId)
   });
 });
 

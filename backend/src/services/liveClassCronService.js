@@ -8,11 +8,42 @@ const emailService = require('./emailService');
 const { userRepository } = require('../repositories');
 const logger = require('../utils/logger');
 const { getStudentAttendanceForClass } = require('./liveClassAttendanceService');
+const { getSocketHandler } = require('./socketBridge');
 
 class LiveClassCronService {
   constructor() {
     this.isRunning = false;
     this.batchSize = 100;
+  }
+
+  async emitLiveClassUpdate(classId, status) {
+    if (!classId) return;
+
+    const liveClass = await LiveClass.findById(classId)
+      .select('_id batchId instructorId roomId scheduledStartTime scheduledEndTime')
+      .lean()
+      .catch(() => null);
+    if (!liveClass?.batchId) return;
+
+    const enrollments = await Enrollment.find(
+      { batchId: liveClass.batchId, status: 'ENROLLED' },
+      { studentId: 1 }
+    ).lean().catch(() => []);
+
+    const recipients = [
+      liveClass.instructorId?.toString?.() || liveClass.instructorId,
+      ...enrollments.map((enrollment) => enrollment.studentId?.toString?.() || enrollment.studentId)
+    ].filter(Boolean);
+
+    const socketHandler = getSocketHandler();
+    socketHandler?.emitToUsers(recipients, 'live-class-updated', {
+      classId: liveClass._id.toString(),
+      batchId: liveClass.batchId?.toString?.() || liveClass.batchId,
+      roomId: liveClass.roomId,
+      status,
+      scheduledStartTime: liveClass.scheduledStartTime,
+      scheduledEndTime: liveClass.scheduledEndTime
+    });
   }
 
   async updateLiveClassStatuses() {
@@ -302,6 +333,7 @@ class LiveClassCronService {
 
           if (updateResult.modifiedCount > 0) {
             updated += 1;
+            await this.emitLiveClassUpdate(cls._id, 'LIVE');
           }
         } catch (error) {
           logger.error(`Error updating class ${cls._id}:`, error);
@@ -363,6 +395,7 @@ class LiveClassCronService {
 
           if (updateResult.modifiedCount > 0) {
             updated += 1;
+            await this.emitLiveClassUpdate(cls._id, 'ENDED');
           }
         } catch (error) {
           logger.error(`Error updating overdue scheduled class ${cls._id}:`, error);
@@ -424,6 +457,7 @@ class LiveClassCronService {
 
           if (updateResult.modifiedCount > 0) {
             updated += 1;
+            await this.emitLiveClassUpdate(cls._id, 'ENDED');
           }
         } catch (error) {
           logger.error(`Error updating class ${cls._id}:`, error);

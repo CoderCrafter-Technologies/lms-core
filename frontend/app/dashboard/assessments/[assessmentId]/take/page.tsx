@@ -191,7 +191,7 @@ export default function TakeAssessmentPage() {
   const params = useParams()
   const searchParams = useSearchParams()
   const assessmentId = Array.isArray(params.assessmentId) ? params.assessmentId[0] : params.assessmentId
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const router = useRouter()
 
   const [assessment, setAssessment] = useState<Assessment | null>(null)
@@ -445,8 +445,15 @@ export default function TakeAssessmentPage() {
       }
     }
 
-    if (user) fetchAssessmentMeta()
-  }, [assessmentId, user])
+    if (authLoading) return
+
+    if (!user) {
+      setLoading(false)
+      return
+    }
+
+    fetchAssessmentMeta()
+  }, [assessmentId, authLoading, user])
 
   useEffect(() => {
     if (!assessment || !submission) return

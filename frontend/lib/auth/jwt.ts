@@ -39,7 +39,11 @@ export const clearStoredAccessToken = () => {
 }
 
 export const isProtectedPath = (pathname: string): boolean => {
-  return pathname.startsWith("/dashboard") || pathname.startsWith("/classroom")
+  return (
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/classroom") ||
+    pathname.startsWith("/assessment-player")
+  )
 }
 
 export const redirectToLogin = () => {

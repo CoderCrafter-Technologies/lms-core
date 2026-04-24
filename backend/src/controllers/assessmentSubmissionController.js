@@ -80,6 +80,25 @@ const hasSubjectiveQuestions = (assessment) =>
   Array.isArray(assessment?.questions) &&
   assessment.questions.some((question) => ['short-answer', 'essay'].includes(question?.type));
 
+const resolveSubmissionStudentId = (submission) =>
+  submission?.studentId?._id?.toString?.() ||
+  submission?.studentId?.id?.toString?.() ||
+  submission?.studentId?.toString?.() ||
+  null;
+
+const ensureStudentOwnsSubmission = (submission, req, res) => {
+  const submissionStudentId = resolveSubmissionStudentId(submission);
+  if (submissionStudentId && String(submissionStudentId) === String(req.userId)) {
+    return true;
+  }
+
+  res.status(403).json({
+    success: false,
+    message: 'Unauthorized access'
+  });
+  return false;
+};
+
 const ensureInstructorCanAccessSubmission = async (submissionId, user) => {
   const submission = await assessmentSubmissionRepository.findById(submissionId, {
     populate: [{ path: 'assessmentId', select: 'createdBy courseId batchId title grading settings' }]
@@ -268,15 +287,8 @@ const saveProgress = asyncHandler(async (req, res) => {
       message: 'Submission not found'
     });
   }
-
-
-
-  // Check if submission belongs to current user
-  if (submission.studentId.toString() !== req.userId.toString()) {
-    return res.status(403).json({
-      success: false,
-      message: 'Unauthorized access'
-    });
+  if (!ensureStudentOwnsSubmission(submission, req, res)) {
+    return;
   }
 
   // Check if submission is still active
@@ -329,12 +341,8 @@ const submitAssessment = asyncHandler(async (req, res) => {
     });
   }
 
-  // Check if submission belongs to current user
-  if (submission.studentId.toString() !== req.userId.toString()) {
-    return res.status(403).json({
-      success: false,
-      message: 'Unauthorized access'
-    });
+  if (!ensureStudentOwnsSubmission(submission, req, res)) {
+    return;
   }
 
   // Check if already submitted
@@ -501,11 +509,7 @@ const getSubmission = asyncHandler(async (req, res) => {
   }
 
   // Check access permissions
-  const submissionStudentId =
-    submission.studentId?._id?.toString?.() ||
-    submission.studentId?.id?.toString?.() ||
-    submission.studentId?.toString?.() ||
-    null;
+  const submissionStudentId = resolveSubmissionStudentId(submission);
   const isStudent = Boolean(submissionStudentId && submissionStudentId === req.userId);
   const isInstructor = req.user.roleId.name === 'INSTRUCTOR';
   const isAdmin = req.user.roleId.name === 'ADMIN';
@@ -607,12 +611,8 @@ const addViolation = asyncHandler(async (req, res) => {
     });
   }
 
-  // Check if submission belongs to current user
-  if (submission.studentId.toString() !== req.userId) {
-    return res.status(403).json({
-      success: false,
-      message: 'Unauthorized access'
-    });
+  if (!ensureStudentOwnsSubmission(submission, req, res)) {
+    return;
   }
 
   await assessmentSubmissionRepository.addViolation(submissionId, type, details);
@@ -1134,11 +1134,8 @@ const runCodingQuestion = asyncHandler(async (req, res) => {
     });
   }
 
-  if (submission.studentId.toString() !== req.userId.toString()) {
-    return res.status(403).json({
-      success: false,
-      message: 'Unauthorized access'
-    });
+  if (!ensureStudentOwnsSubmission(submission, req, res)) {
+    return;
   }
 
   if (submission.status !== 'in-progress') {

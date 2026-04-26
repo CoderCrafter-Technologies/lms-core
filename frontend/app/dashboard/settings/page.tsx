@@ -78,6 +78,13 @@ type LicensingSummary = {
   lastSyncStatus?: string | null
 }
 
+type AdminDefaultsSettings = {
+  timezone: string
+  dateFormat: string
+  timeFormat: '12h' | '24h'
+  locale: string
+}
+
 type SmtpSettings = {
   enabled: boolean
   host: string
@@ -164,6 +171,13 @@ const defaultSmtpSettings: SmtpSettings = {
   testEmail: '',
 }
 
+const defaultAdminDefaultsSettings: AdminDefaultsSettings = {
+  timezone: 'UTC',
+  dateFormat: 'YYYY-MM-DD',
+  timeFormat: '24h',
+  locale: 'en-US',
+}
+
 type DnsRecord = {
   type: 'A' | 'TXT'
   host: string
@@ -173,9 +187,10 @@ type DnsRecord = {
 export default function SettingsPage() {
   const { user, logout, refreshProfile } = useAuth()
   const avatarInputRef = useRef<HTMLInputElement | null>(null)
-  const [activeTab, setActiveTab] = useState<'security' | 'signin' | 'notifications' | 'database' | 'smtp' | 'domain'>('security')
+  const [activeTab, setActiveTab] = useState<'security' | 'signin' | 'notifications' | 'defaults' | 'database' | 'smtp' | 'domain'>('security')
   const [settings, setSettings] = useState<SecuritySettings>(defaultSecuritySettings)
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(defaultNotificationSettings)
+  const [adminDefaults, setAdminDefaults] = useState<AdminDefaultsSettings>(defaultAdminDefaultsSettings)
   const [databaseSettings, setDatabaseSettings] = useState<DatabaseSettings>(defaultDatabaseSettings)
   const [useLocalMongoPreset, setUseLocalMongoPreset] = useState(
     String(defaultDatabaseSettings.mongodbUri || '').trim() === DEFAULT_LOCAL_MONGO_URI
@@ -225,6 +240,12 @@ export default function SettingsPage() {
     () => String(process.env.NEXT_PUBLIC_ENABLE_POSTGRES_RUNTIME || 'false').toLowerCase() === 'true',
     []
   )
+  const timezoneOptions = useMemo(() => {
+    const supported = (Intl as any).supportedValuesOf?.('timeZone') as string[] | undefined
+    return supported?.length
+      ? supported
+      : ['UTC', 'Asia/Kolkata', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'Europe/London']
+  }, [])
 
   const loadSettingsData = async () => {
     try {
@@ -256,6 +277,12 @@ export default function SettingsPage() {
           const summary = licensingResponse?.data || null
           setLicensingSummary(summary)
           const setup = setupPrefill?.data?.setup || {}
+          setAdminDefaults({
+            timezone: String(setup?.defaults?.timezone || defaultAdminDefaultsSettings.timezone),
+            dateFormat: String(setup?.defaults?.dateFormat || defaultAdminDefaultsSettings.dateFormat),
+            timeFormat: String(setup?.defaults?.timeFormat || defaultAdminDefaultsSettings.timeFormat) as '12h' | '24h',
+            locale: String(setup?.defaults?.locale || defaultAdminDefaultsSettings.locale),
+          })
           const domainEntry = Array.isArray(setup?.customDomains) ? setup.customDomains[0] : null
           if (domainEntry?.domain) {
             const records: DnsRecord[] = []
@@ -276,6 +303,7 @@ export default function SettingsPage() {
             }))
           }
         } catch {
+          setAdminDefaults(defaultAdminDefaultsSettings)
           setDatabaseSettings(defaultDatabaseSettings)
           setSmtpSettings(defaultSmtpSettings)
           setDatabaseRuntime(null)
@@ -633,6 +661,20 @@ export default function SettingsPage() {
     }
   }
 
+  const saveAdminDefaults = async () => {
+    try {
+      setSaving(true)
+      setMessage(null)
+      const response = await api.updateAdminDefaultsSettings(adminDefaults)
+      setAdminDefaults(response?.settings || adminDefaults)
+      setMessage(response?.message || 'Regional defaults updated successfully.')
+    } catch (error: any) {
+      setMessage(error?.message || 'Failed to update regional defaults')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const saveSmtpSettings = async () => {
     try {
       setSaving(true)
@@ -774,6 +816,19 @@ export default function SettingsPage() {
           <Bell className="w-4 h-4 inline mr-2" />
           Notifications
         </button>
+        {isAdmin && (
+          <button
+            onClick={() => setActiveTab('defaults')}
+            className={`px-4 py-2 rounded-md text-sm font-medium ${activeTab === 'defaults' ? 'text-white' : ''}`}
+            style={{
+              backgroundColor: activeTab === 'defaults' ? 'var(--color-primary)' : 'var(--color-surface)',
+              color: activeTab === 'defaults' ? '#fff' : 'var(--color-text)',
+              border: `1px solid var(--color-border)`,
+            }}
+          >
+            Regional
+          </button>
+        )}
         {isAdmin && (
           <button
             onClick={() => setActiveTab('database')}
@@ -1006,6 +1061,91 @@ export default function SettingsPage() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'defaults' && isAdmin && (
+        <div className="space-y-4">
+          <div className="rounded-lg border p-4" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+            <h2 className="font-semibold mb-3" style={{ color: 'var(--color-text)' }}>Regional Defaults</h2>
+            <p className="text-sm mb-4" style={{ color: 'var(--color-text-secondary)' }}>
+              These defaults are used across the LMS and act as the source timezone during setup-driven scheduling flows.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text-secondary)' }}>
+                  Timezone
+                </label>
+                <select
+                  value={adminDefaults.timezone}
+                  onChange={(e) => setAdminDefaults((prev) => ({ ...prev, timezone: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-md border"
+                  style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-background)', color: 'var(--color-text)' }}
+                >
+                  {timezoneOptions.map((timezone) => (
+                    <option key={timezone} value={timezone}>{timezone}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text-secondary)' }}>
+                  Date Format
+                </label>
+                <input
+                  type="text"
+                  value={adminDefaults.dateFormat}
+                  onChange={(e) => setAdminDefaults((prev) => ({ ...prev, dateFormat: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-md border"
+                  style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-background)', color: 'var(--color-text)' }}
+                  placeholder="YYYY-MM-DD"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text-secondary)' }}>
+                  Time Format
+                </label>
+                <select
+                  value={adminDefaults.timeFormat}
+                  onChange={(e) => setAdminDefaults((prev) => ({ ...prev, timeFormat: e.target.value as '12h' | '24h' }))}
+                  className="w-full px-3 py-2 rounded-md border"
+                  style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-background)', color: 'var(--color-text)' }}
+                >
+                  <option value="24h">24h</option>
+                  <option value="12h">12h</option>
+                </select>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text-secondary)' }}>
+                  Locale
+                </label>
+                <input
+                  type="text"
+                  value={adminDefaults.locale}
+                  onChange={(e) => setAdminDefaults((prev) => ({ ...prev, locale: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-md border"
+                  style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-background)', color: 'var(--color-text)' }}
+                  placeholder="en-US"
+                />
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-md border p-3 text-sm" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-background)', color: 'var(--color-text-secondary)' }}>
+              Batch creation already defaults its timezone from this setting. Manual class scheduling should be entered in the batch timezone shown on the class form.
+            </div>
+
+            <button
+              onClick={saveAdminDefaults}
+              disabled={saving}
+              className="mt-4 px-4 py-2 rounded-md text-sm text-white"
+              style={{ backgroundColor: 'var(--color-primary)', opacity: saving ? 0.7 : 1 }}
+            >
+              {saving ? 'Saving...' : 'Save Regional Defaults'}
+            </button>
           </div>
         </div>
       )}

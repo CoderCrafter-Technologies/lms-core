@@ -6,6 +6,7 @@ const emailService = require('../services/emailService');
 const {
   toCanonicalTimezone,
   parseDateInput,
+  parseDateTimeInput,
   addDaysToDateParts,
   compareDateParts,
   getDayNameForDateParts,
@@ -509,11 +510,31 @@ const scheduleClass = asyncHandler(async (req, res) => {
     });
   }
 
+  const timezone = resolveValidTimezone(batch?.schedule?.timezone) || 'UTC';
+  const scheduledStartTime = parseDateTimeInput(req.body?.scheduledStartTime, timezone);
+  const scheduledEndTime = parseDateTimeInput(req.body?.scheduledEndTime, timezone);
+
+  if (!scheduledStartTime || !scheduledEndTime) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid scheduled start or end time'
+    });
+  }
+
+  if (scheduledEndTime <= scheduledStartTime) {
+    return res.status(400).json({
+      success: false,
+      message: 'Scheduled end time must be after scheduled start time'
+    });
+  }
+
   // Create class data
   const classData = {
     ...req.body,
     batchId: id,
     instructorId: batch.instructorId, // Use batch instructor
+    scheduledStartTime,
+    scheduledEndTime,
     createdBy: req.userId,
     status: 'SCHEDULED',
     roomId: generateLiveClassRoomId()
@@ -549,20 +570,62 @@ const scheduleClass = asyncHandler(async (req, res) => {
 const updateScheduledClass = asyncHandler(async (req, res) => {
   const { id, classId } = req.params;
   const updates = { ...(req.body || {}) };
+  const batch = await batchRepository.findById(id);
+
+  if (!batch) {
+    return res.status(404).json({
+      success: false,
+      message: 'Batch not found'
+    });
+  }
+
+  const timezone = resolveValidTimezone(batch?.schedule?.timezone) || 'UTC';
 
   // Room IDs are immutable once generated.
   delete updates.roomId;
   delete updates._id;
   delete updates.id;
 
-  const scheduledClass = await liveClassRepository.updateById(classId, updates);
-  
-  if (!scheduledClass) {
+  if (typeof updates.scheduledStartTime !== 'undefined') {
+    const parsedStart = parseDateTimeInput(updates.scheduledStartTime, timezone);
+    if (!parsedStart) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid scheduled start time'
+      });
+    }
+    updates.scheduledStartTime = parsedStart;
+  }
+
+  if (typeof updates.scheduledEndTime !== 'undefined') {
+    const parsedEnd = parseDateTimeInput(updates.scheduledEndTime, timezone);
+    if (!parsedEnd) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid scheduled end time'
+      });
+    }
+    updates.scheduledEndTime = parsedEnd;
+  }
+
+  const existingClass = await liveClassRepository.findById(classId);
+  if (!existingClass) {
     return res.status(404).json({
       success: false,
       message: 'Scheduled class not found'
     });
   }
+
+  const nextStartTime = updates.scheduledStartTime || existingClass.scheduledStartTime;
+  const nextEndTime = updates.scheduledEndTime || existingClass.scheduledEndTime;
+  if (nextStartTime && nextEndTime && new Date(nextEndTime) <= new Date(nextStartTime)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Scheduled end time must be after scheduled start time'
+    });
+  }
+
+  const scheduledClass = await liveClassRepository.updateById(classId, updates);
 
   res.json({
     success: true,

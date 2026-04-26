@@ -1003,6 +1003,10 @@ class ApiService {
     return this.request('/admin/branding');
   }
 
+  async getAdminDefaultsSettings() {
+    return this.request('/admin/defaults');
+  }
+
   async updateLandingPageSettings(payload: Record<string, any>) {
     return this.request('/admin/landing-page', {
       method: 'PUT',
@@ -1012,6 +1016,18 @@ class ApiService {
 
   async updateBrandingSettings(payload: Record<string, any>) {
     return this.request('/admin/branding', {
+      method: 'PUT',
+      body: JSON.stringify(payload || {}),
+    });
+  }
+
+  async updateAdminDefaultsSettings(payload: {
+    timezone: string;
+    dateFormat?: string;
+    timeFormat?: string;
+    locale?: string;
+  }) {
+    return this.request('/admin/defaults', {
       method: 'PUT',
       body: JSON.stringify(payload || {}),
     });

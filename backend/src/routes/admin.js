@@ -12,6 +12,7 @@ const mongoose = require('mongoose');
 const fs = require('fs/promises');
 const path = require('path');
 const emailService = require('../services/emailService');
+const { toCanonicalTimezone } = require('../utils/timezone');
 
 const router = express.Router();
 const validateRequest = (req, res, next) => {
@@ -25,6 +26,8 @@ const validateRequest = (req, res, next) => {
   }
   return next();
 };
+
+const normalizeTimezone = (value) => toCanonicalTimezone(String(value || '').trim());
 
 // All admin routes require admin role
 router.use(roleMiddleware(['admin']));
@@ -272,6 +275,68 @@ router.put('/branding', async (req, res) => {
     res.status(400).json({
       success: false,
       message: error.message || 'Failed to update branding'
+    });
+  }
+});
+
+/**
+ * @route   GET /api/admin/defaults
+ * @desc    Get setup regional defaults
+ * @access  Admin
+ */
+router.get('/defaults', async (req, res, next) => {
+  try {
+    const setupSettings = await systemSettingsStore.getSetupSettings();
+    res.json({
+      success: true,
+      settings: setupSettings?.defaults || {}
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * @route   PUT /api/admin/defaults
+ * @desc    Update setup regional defaults
+ * @access  Admin
+ */
+router.put('/defaults', async (req, res) => {
+  try {
+    const payload = req.body || {};
+    const setupSettings = await systemSettingsStore.getSetupSettings();
+    const current = setupSettings?.defaults || {};
+    const timezone = normalizeTimezone(payload?.timezone || current.timezone || 'UTC');
+
+    if (!timezone) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid timezone'
+      });
+    }
+
+    const nextDefaults = {
+      ...current,
+      timezone,
+      dateFormat: String(payload?.dateFormat || current.dateFormat || 'YYYY-MM-DD').trim(),
+      timeFormat: String(payload?.timeFormat || current.timeFormat || '24h').trim(),
+      locale: String(payload?.locale || current.locale || 'en-US').trim(),
+    };
+
+    const updated = await systemSettingsStore.updateSetupSettings({
+      defaults: nextDefaults
+    });
+    await telemetryLicensingService.ensureIdentity({ timezone: nextDefaults.timezone });
+
+    res.json({
+      success: true,
+      message: 'Regional defaults updated',
+      settings: updated.defaults || {}
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to update regional defaults'
     });
   }
 });

@@ -10,13 +10,36 @@ interface ClassEditingModalProps {
   isOpen: boolean
   onClose: () => void
   classData: any
+  batchTimezone?: string
   onClassUpdated: (classData: any) => void
+}
+
+const formatDateTimeForInput = (value: string, timeZone?: string) => {
+  if (!value) return ''
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+
+  const parts = formatter.formatToParts(date)
+  const map = Object.fromEntries(parts.filter((part) => part.type !== 'literal').map((part) => [part.type, part.value]))
+  return `${map.year}-${map.month}-${map.day}T${map.hour}:${map.minute}`
 }
 
 export function ClassEditingModal({ 
   isOpen, 
   onClose, 
   classData, 
+  batchTimezone,
   onClassUpdated 
 }: ClassEditingModalProps) {
   const [formData, setFormData] = useState({
@@ -46,13 +69,12 @@ export function ClassEditingModal({
     if (isOpen) {
       fetchInstructors()
       if (classData) {
-        // Format datetime values for input fields
-        const formattedStartTime = classData.scheduledStartTime 
-          ? new Date(classData.scheduledStartTime).toISOString().slice(0, 16)
+        const effectiveTimezone = batchTimezone || classData?.batchId?.schedule?.timezone || classData?.batchTimezone
+        const formattedStartTime = classData.scheduledStartTime
+          ? formatDateTimeForInput(classData.scheduledStartTime, effectiveTimezone)
           : ''
-        
-        const formattedEndTime = classData.scheduledEndTime 
-          ? new Date(classData.scheduledEndTime).toISOString().slice(0, 16)
+        const formattedEndTime = classData.scheduledEndTime
+          ? formatDateTimeForInput(classData.scheduledEndTime, effectiveTimezone)
           : ''
         
         setFormData({
@@ -76,7 +98,7 @@ export function ClassEditingModal({
         })
       }
     }
-  }, [isOpen, classData])
+  }, [isOpen, classData, batchTimezone])
 
   const fetchInstructors = async () => {
     try {
@@ -325,6 +347,9 @@ export function ClassEditingModal({
                   e.currentTarget.style.boxShadow = 'none'
                 }}
               />
+              <p className="mt-1 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                This time is interpreted in {batchTimezone || classData?.batchId?.schedule?.timezone || 'the batch timezone'}.
+              </p>
             </div>
 
             <div>

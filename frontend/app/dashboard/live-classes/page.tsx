@@ -544,6 +544,7 @@ export default function LiveClassesPage() {
           onClose={() => setSelectedClass(null)}
           batchId={selectedClass.batchId?._id}
           batchName={selectedClass.batchId?.name}
+          batchTimezone={selectedClass.batchId?.schedule?.timezone}
           onClassCreated={handleClassCreated}
         />
       )}

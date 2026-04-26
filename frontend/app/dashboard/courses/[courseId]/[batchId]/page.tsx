@@ -789,6 +789,7 @@ export default function ScheduledClassesPage() {
           onClose={() => setShowClassModal(false)}
           batchId={batch.id}
           batchName={batch.name}
+          batchTimezone={batch.schedule?.timezone}
           onClassCreated={handleClassCreated}
         />
       )}
@@ -798,6 +799,7 @@ export default function ScheduledClassesPage() {
           isOpen={showClassEditingModal}
           onClose={() => setShowClassEditingModal(false)}
           classData={selectedClass}
+          batchTimezone={batch?.schedule?.timezone}
           onClassUpdated={() => {
             setShowClassEditingModal(false); 
             setSelectedClass(null); 

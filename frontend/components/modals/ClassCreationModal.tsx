@@ -12,6 +12,7 @@ interface ClassCreationModalProps {
   onClose: () => void
   batchId: string
   batchName: string
+  batchTimezone?: string
   onClassCreated: (classData: any) => void
 }
 
@@ -20,6 +21,7 @@ export function ClassCreationModal({
   onClose, 
   batchId, 
   batchName, 
+  batchTimezone,
   onClassCreated 
 }: ClassCreationModalProps) {
   const [formData, setFormData] = useState({
@@ -302,6 +304,9 @@ export function ClassCreationModal({
                   e.currentTarget.style.boxShadow = 'none'
                 }}
               />
+              <p className="mt-1 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                This time will be scheduled in {batchTimezone || 'the batch timezone'}.
+              </p>
             </div>
 
             <div>
